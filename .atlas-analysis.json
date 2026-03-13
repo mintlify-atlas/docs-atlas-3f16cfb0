@@ -1,0 +1,154 @@
+{
+  "projectType": "saas",
+  "projectName": "DRAIT Mini-MES",
+  "projectDescription": "Web-based Manufacturing Execution System for metalworking and smithy shops with traceability, work order management, and resource tracking.",
+  "theme": "aspen",
+  "primaryColor": "#1e3a8a",
+  "lightColor": "#3b82f6",
+  "darkColor": "#0f172a",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "features",
+              "system-architecture"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "getting-started/installation",
+              "getting-started/quickstart",
+              "getting-started/configuration",
+              "getting-started/first-login"
+            ]
+          },
+          {
+            "group": "User Guides",
+            "pages": [
+              "guides/owner-guide",
+              "guides/supervisor-guide",
+              "guides/operator-guide"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/client-management",
+              "features/quotations",
+              "features/work-orders",
+              "features/resource-management",
+              "features/material-tracking",
+              "features/production-workflow",
+              "features/reports-analytics"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/role-permissions",
+              "advanced/audit-trail",
+              "advanced/data-model"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/auth",
+              "api/clients",
+              "api/quotations",
+              "api/work-orders",
+              "api/resources",
+              "api/materials",
+              "api/operation-logs",
+              "api/reports",
+              "api/users",
+              "api/audit"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models/overview",
+              "api/models/enums"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Deployment",
+        "groups": [
+          {
+            "group": "Installation",
+            "pages": [
+              "deployment/docker-setup",
+              "deployment/environment-variables",
+              "deployment/database-setup"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "deployment/monitoring",
+              "deployment/backup-restore",
+              "deployment/troubleshooting"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Role-based access control (Owner, Supervisor, Operator, Admin)",
+    "Client and quotation management with conversion to work orders",
+    "Work order lifecycle tracking with status management",
+    "Resource management for personnel and machinery",
+    "Material inventory tracking with consumption logging",
+    "Production workflow with event traceability",
+    "Dashboard with KPIs and productivity reports",
+    "Complete audit trail for all operations",
+    "Docker-based on-premise deployment"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "GET /api/auth/me",
+    "POST /api/auth/logout",
+    "GET /api/clients",
+    "POST /api/clients",
+    "GET /api/quotations",
+    "POST /api/quotations",
+    "PATCH /api/quotations/:id/status",
+    "GET /api/work-orders",
+    "POST /api/work-orders",
+    "POST /api/work-orders/from-quotation/:quotationId",
+    "PATCH /api/work-orders/:id/status",
+    "POST /api/work-orders/:id/assignments",
+    "POST /api/work-orders/:id/events",
+    "POST /api/work-orders/:id/consumptions",
+    "GET /api/resources",
+    "POST /api/resources",
+    "GET /api/materials",
+    "POST /api/materials/:id/adjust-stock",
+    "GET /api/operation-logs",
+    "GET /api/operation-logs/work-order/:workOrderId",
+    "GET /api/reports/dashboard",
+    "GET /api/reports/productivity"
+  ]
+}
