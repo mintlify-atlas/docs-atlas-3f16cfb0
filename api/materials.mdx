@@ -1,0 +1,435 @@
+---
+title: Materials
+description: Manage inventory materials and stock levels
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/materials
+
+Retrieve all materials for the authenticated user's company.
+
+### Query Parameters
+
+<ParamField query="search" type="string">
+  Search by name or category
+</ParamField>
+
+### Response
+
+Returns an array of material objects.
+
+<ResponseField name="id" type="string">Material ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="name" type="string">Material name</ResponseField>
+<ResponseField name="category" type="string">Material category</ResponseField>
+<ResponseField name="unit" type="string">Unit of measurement</ResponseField>
+<ResponseField name="unitCost" type="number">Cost per unit (decimal)</ResponseField>
+<ResponseField name="stock" type="number">Current stock level (decimal)</ResponseField>
+<ResponseField name="isActive" type="boolean">Active status</ResponseField>
+<ResponseField name="createdAt" type="string">Creation timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">Last update timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/materials \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (with search)
+curl "http://localhost:3000/api/materials?search=aluminum" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxm123abc",
+    "companyId": "clx456def",
+    "name": "Aluminum Sheet 6061-T6",
+    "category": "Raw Materials",
+    "unit": "kg",
+    "unitCost": 8.50,
+    "stock": 250.000,
+    "isActive": true,
+    "createdAt": "2026-01-05T00:00:00.000Z",
+    "updatedAt": "2026-03-13T09:15:00.000Z"
+  },
+  {
+    "id": "clxm456def",
+    "companyId": "clx456def",
+    "name": "M8 Hex Bolts",
+    "category": "Fasteners",
+    "unit": "pcs",
+    "unitCost": 0.15,
+    "stock": 5000.000,
+    "isActive": true,
+    "createdAt": "2026-01-08T00:00:00.000Z",
+    "updatedAt": "2026-03-12T14:20:00.000Z"
+  }
+]
+```
+
+---
+
+## POST /api/materials
+
+Create a new material.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Material name (max 120 characters)
+</ParamField>
+
+<ParamField body="category" type="string">
+  Material category (max 80 characters)
+</ParamField>
+
+<ParamField body="unit" type="string" required>
+  Unit of measurement (max 30 characters)
+  
+  Examples: `kg`, `pcs`, `m`, `L`, `m2`, `units`
+</ParamField>
+
+<ParamField body="unitCost" type="number" required>
+  Cost per unit (min: 0)
+</ParamField>
+
+<ParamField body="stock" type="number" required>
+  Initial stock level (min: 0)
+</ParamField>
+
+### Response
+
+Returns the created material object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/materials \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Steel Plate A36",
+    "category": "Raw Materials",
+    "unit": "kg",
+    "unitCost": 5.75,
+    "stock": 500
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/materials', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Steel Plate A36',
+    category: 'Raw Materials',
+    unit: 'kg',
+    unitCost: 5.75,
+    stock: 500
+  })
+});
+
+const material = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxm789ghi",
+  "companyId": "clx456def",
+  "name": "Steel Plate A36",
+  "category": "Raw Materials",
+  "unit": "kg",
+  "unitCost": 5.75,
+  "stock": 500.000,
+  "isActive": true,
+  "createdAt": "2026-03-13T10:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+---
+
+## PATCH /api/materials/:id
+
+Update an existing material.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields you want to update.
+
+<ParamField body="name" type="string">
+  Material name (max 120 characters)
+</ParamField>
+
+<ParamField body="category" type="string">
+  Material category (max 80 characters)
+</ParamField>
+
+<ParamField body="unit" type="string">
+  Unit of measurement (max 30 characters)
+</ParamField>
+
+<ParamField body="unitCost" type="number">
+  Cost per unit (min: 0)
+</ParamField>
+
+<Note>
+  Stock levels should be adjusted using the `/adjust-stock` endpoint, not via PATCH.
+</Note>
+
+### Response
+
+Returns the updated material object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/materials/clxm123abc \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"unitCost": 9.00, "category": "Metals"}'
+```
+</CodeGroup>
+
+---
+
+## POST /api/materials/:id/adjust-stock
+
+Adjust material stock levels with proper inventory tracking.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="type" type="string" required>
+  Movement type: `ENTRADA` (incoming), `AJUSTE` (adjustment)
+</ParamField>
+
+<ParamField body="quantity" type="number" required>
+  Quantity to add (positive) or subtract (negative)
+</ParamField>
+
+<ParamField body="note" type="string">
+  Reason or notes for the adjustment
+</ParamField>
+
+### Response
+
+Returns the updated material with new stock level.
+
+### Example
+
+<CodeGroup>
+```bash cURL (Add stock)
+curl -X POST http://localhost:3000/api/materials/clxm123abc/adjust-stock \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "ENTRADA",
+    "quantity": 100,
+    "note": "New shipment received from supplier"
+  }'
+```
+
+```bash cURL (Adjust down)
+curl -X POST http://localhost:3000/api/materials/clxm123abc/adjust-stock \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "AJUSTE",
+    "quantity": -25,
+    "note": "Inventory correction - damaged materials"
+  }'
+```
+
+```javascript JavaScript
+// Add stock
+const response = await fetch('http://localhost:3000/api/materials/clxm123abc/adjust-stock', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'ENTRADA',
+    quantity: 100,
+    note: 'New shipment received'
+  })
+});
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxm123abc",
+  "companyId": "clx456def",
+  "name": "Aluminum Sheet 6061-T6",
+  "category": "Raw Materials",
+  "unit": "kg",
+  "unitCost": 8.50,
+  "stock": 350.000,
+  "isActive": true,
+  "createdAt": "2026-01-05T00:00:00.000Z",
+  "updatedAt": "2026-03-13T10:30:00.000Z"
+}
+```
+
+<Note>
+  Stock adjustments create `MaterialMovement` records for complete audit trail and inventory tracking.
+</Note>
+
+---
+
+## DELETE /api/materials/:id
+
+Delete a material (soft delete - sets `isActive` to false).
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Deletion success status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE http://localhost:3000/api/materials/clxm789ghi \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+<Note>
+  Materials are soft-deleted and remain in the database for audit purposes and historical reference in work orders.
+</Note>
+
+---
+
+## GET /api/materials/status
+
+Check materials service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/materials/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## Material Movement Types
+
+<ResponseField name="ENTRADA" type="movement">
+  **Incoming** - Stock increase from purchases or receipts
+</ResponseField>
+
+<ResponseField name="AJUSTE" type="movement">
+  **Adjustment** - Manual stock correction (increase or decrease)
+</ResponseField>
+
+<ResponseField name="CONSUMO" type="movement">
+  **Consumption** - Automatic stock decrease when materials are consumed in work orders
+</ResponseField>
+
+<Tip>
+  Material consumptions linked to work orders automatically create `CONSUMO` movements and are tracked separately via the work orders consumptions endpoint.
+</Tip>
+
+---
+
+## Best Practices
+
+### Inventory Management
+
+1. **Use descriptive names**: Include specifications in material names (e.g., "Aluminum Sheet 6061-T6" instead of just "Aluminum")
+2. **Categorize materials**: Use consistent categories for better organization and reporting
+3. **Track unit costs**: Keep unit costs updated for accurate job costing
+4. **Document adjustments**: Always include notes when adjusting stock levels
+
+### Stock Control
+
+1. **Regular audits**: Periodically verify physical stock matches system records
+2. **Monitor low stock**: Implement alerts for materials below minimum thresholds
+3. **Track consumption patterns**: Use operation logs to analyze material usage
+4. **Maintain history**: Soft deletes preserve historical data for reporting
+
+### Units of Measurement
+
+Use standard units consistently:
+- **Weight**: kg, g, lb, oz
+- **Length**: m, cm, mm, ft, in
+- **Volume**: L, mL, gal
+- **Area**: m2, ft2
+- **Count**: pcs, units, ea

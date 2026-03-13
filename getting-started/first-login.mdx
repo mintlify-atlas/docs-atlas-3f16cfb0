@@ -1,0 +1,371 @@
+---
+title: First Login
+description: Access demo accounts and understand role-based permissions in DRAIT Mini-MES
+---
+
+## Overview
+
+After installing and seeding DRAIT Mini-MES, you can log in using demo credentials. The system includes role-based access control (RBAC) with four distinct user roles, each providing different levels of access.
+
+<Note>
+Demo credentials are created by the seed script (`npm run prisma:seed`). These are for testing and development only.
+</Note>
+
+## Demo Credentials
+
+The system includes pre-configured demo users for each role:
+
+### Owner (DUEÑO)
+
+```
+Email: owner@drait.local
+Password: ChangeMe123!
+```
+
+**Access Level**: Full system access
+- Complete administrative control
+- User management
+- Audit logs
+- All operational features
+
+### Supervisor
+
+```
+Email: supervisor@drait.local
+Password: ChangeMe123!
+```
+
+**Access Level**: Operational management
+- Dashboard and KPIs
+- Order dispatch
+- Work orders management
+- Clients and quotations
+- Reports and analytics
+
+### Operator (OPERARIO)
+
+```
+Email: oper1@drait.local
+Password: ChangeMe123!
+```
+
+**Access Level**: Limited to assigned work
+- "My Shift" view only
+- Execute assigned work orders
+- Record progress and consumptions
+- View own operation history
+
+<Note>
+The seed also creates `oper2@drait.local` and `oper3@drait.local` with the same password for testing multi-operator scenarios.
+</Note>
+
+## Role Comparison
+
+| Role | Dashboard | Work Orders | Clients | Users | Audit | Reports |
+|------|-----------|-------------|---------|-------|-------|----------|
+| **OPERARIO** | ❌ | Own only | ❌ | ❌ | ❌ | ❌ |
+| **SUPERVISOR** | ✅ | All | ✅ | ❌ | ❌ | ✅ |
+| **DUEÑO** | ✅ | All | ✅ | ✅ | ✅ | ✅ |
+| **ADMIN** | ✅ | All | ✅ | ✅ | ✅ | ✅ |
+
+## First Login Process
+
+<Steps>
+  <Step title="Access the application">
+    Open your browser and navigate to:
+    
+    ```
+    http://localhost/
+    ```
+    
+    You'll see the DRAIT Mini-MES login page.
+  </Step>
+
+  <Step title="Choose a demo account">
+    Select one of the demo credentials based on the role you want to explore:
+    - **Owner** for full administrative access
+    - **Supervisor** for operational management
+    - **Operator** for worker experience
+  </Step>
+
+  <Step title="Enter credentials">
+    Enter the email and password for your chosen role:
+    
+    ```
+    Email: owner@drait.local
+    Password: ChangeMe123!
+    ```
+  </Step>
+
+  <Step title="Explore the interface">
+    After successful login, you'll be redirected to the appropriate home view based on your role.
+  </Step>
+</Steps>
+
+<Warning>
+**Security Notice**: Change these demo passwords immediately in production environments. Demo accounts should only be used for testing.
+</Warning>
+
+## What Each Role Sees
+
+### OPERARIO (Operator) View
+
+**Landing Page**: "Mi Turno" (My Shift)
+
+Operators see a simplified interface focused on their assigned work:
+
+- **My Work Orders**: List of work orders assigned to them
+- **Active Order Details**: Current work order information
+- **Record Progress**: Log operation events (start, pause, complete)
+- **Register Consumption**: Record material usage
+- **Operation History**: Personal activity log
+
+**Navigation Menu**:
+- Mi Turno (My Shift)
+- Logout
+
+<Note>
+Operators cannot see other users' work orders, client information, or system-wide reports. This keeps their interface simple and focused.
+</Note>
+
+### SUPERVISOR View
+
+**Landing Page**: Dashboard with KPIs
+
+Supervisors have operational management capabilities:
+
+- **Dashboard**: Production metrics, active orders, resource utilization
+- **Dispatch** (Despacho): Assign work orders to operators and resources
+- **Work Orders** (OTs): View, create, and manage all work orders
+- **Clients** (Clientes): Manage client information and quotations
+- **Quotations** (Presupuestos): Create and approve quotations
+- **Resources**: View machines and equipment status
+- **Materials**: Check inventory levels and movements
+- **Reports** (Reportes): Productivity, efficiency, and deviation reports
+
+**Navigation Menu**:
+- Dashboard
+- Despacho
+- Órdenes de Trabajo
+- Clientes
+- Presupuestos
+- Recursos
+- Materiales
+- Reportes
+- Logout
+
+<Note>
+Supervisors manage day-to-day operations but cannot modify users or access audit logs.
+</Note>
+
+### DUEÑO / ADMIN (Owner / Admin) View
+
+**Landing Page**: Dashboard with comprehensive KPIs
+
+Owners and Admins have complete system access:
+
+- **All Supervisor Features** plus:
+- **User Management** (Usuarios): Create, edit, and manage system users
+- **Audit Log** (Auditoría): View all system changes and user actions
+- **Company Settings**: Configure company information and preferences
+- **Advanced Reports**: Financial and strategic analytics
+
+**Navigation Menu**:
+- Dashboard
+- Despacho
+- Órdenes de Trabajo
+- Clientes
+- Presupuestos
+- Recursos
+- Materiales
+- Reportes
+- **Usuarios** (unique to this role)
+- **Auditoría** (unique to this role)
+- Configuración
+- Logout
+
+<Note>
+This role is intended for business owners and system administrators who need full control over the system.
+</Note>
+
+## Understanding the Demo Data
+
+The seed script creates a realistic demo environment:
+
+### Users
+- 1 Owner
+- 1 Supervisor
+- 3 Operators (oper1, oper2, oper3)
+
+### Clients
+- Multiple demo clients with contact information
+- Sample quotations in various states (pending, approved, rejected)
+
+### Work Orders
+- Active work orders assigned to operators
+- Orders in different states (pending, in progress, completed)
+- Linked to demo clients and quotations
+
+### Resources
+- Production machines (welding, cutting, drilling)
+- Equipment with capacity and status information
+
+### Materials
+- Steel plates, bars, and welding supplies
+- Current stock levels
+- Movement and consumption history
+
+### Operation Logs
+- Sample operation events (start, pause, resume, complete)
+- Material consumption records
+- Timestamps and operator assignments
+
+<Note>
+All demo data is designed to showcase the full workflow: from client request → quotation → approved → work order → assignment → execution → completion.
+</Note>
+
+## Next Steps After Login
+
+### As an Operator
+
+1. **View Your Assignments**: Check "Mi Turno" for work orders assigned to you
+2. **Start a Work Order**: Select an order and click "Iniciar" (Start)
+3. **Record Progress**: Log events as you work (pause, resume, issues)
+4. **Register Consumption**: Record materials used during production
+5. **Complete Work**: Mark the order as complete when finished
+
+### As a Supervisor
+
+1. **Review Dashboard**: Check KPIs and current production status
+2. **Dispatch Work**: Assign new work orders to operators and machines
+3. **Monitor Progress**: Track active work orders and resource utilization
+4. **Create Quotations**: Respond to client requests with quotes
+5. **Generate Reports**: Analyze productivity and identify bottlenecks
+
+### As an Owner/Admin
+
+1. **Review Overall Status**: Check dashboard for business metrics
+2. **Manage Users**: Add, edit, or deactivate user accounts
+3. **Configure System**: Set company information and preferences
+4. **Review Audit Log**: Monitor system changes and user activity
+5. **Strategic Planning**: Use advanced reports for business decisions
+
+## Session Management
+
+DRAIT Mini-MES uses JWT (JSON Web Tokens) for authentication:
+
+- **Token Expiration**: 8 hours by default (configurable via `JWT_EXPIRES_IN`)
+- **Automatic Logout**: You'll be logged out after token expires
+- **Session Persistence**: Your session persists across browser refreshes
+- **Secure Storage**: Tokens are stored securely in browser memory
+
+<Note>
+If you're inactive for an extended period, you'll need to log in again when your token expires.
+</Note>
+
+## Changing Your Password
+
+To change demo account passwords:
+
+1. Log in as Owner/Admin
+2. Navigate to **Usuarios** (Users)
+3. Select the user to modify
+4. Click **Editar** (Edit)
+5. Enter a new password
+6. Click **Guardar** (Save)
+
+<Warning>
+**Production Security**: Before deploying to production:
+- Delete or change all demo account passwords
+- Create real user accounts with proper credentials
+- Set `JWT_SECRET` to a secure random value
+- Configure shorter token expiration times
+</Warning>
+
+## Troubleshooting Login Issues
+
+### Invalid Credentials
+
+If login fails with "Invalid credentials":
+
+1. Verify you ran the seed command:
+   ```bash
+   docker compose exec drait-backend npm run prisma:seed
+   ```
+
+2. Check backend logs for errors:
+   ```bash
+   docker compose logs drait-backend
+   ```
+
+3. Verify database is populated:
+   ```bash
+   docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT email, role FROM users;"
+   ```
+
+### Token Errors
+
+If you see JWT-related errors:
+
+1. Verify `JWT_SECRET` is set in `.env`
+2. Check backend is running: `docker compose ps drait-backend`
+3. Clear browser cache and try again
+
+### Session Expired
+
+If you're logged out unexpectedly:
+
+1. Check `JWT_EXPIRES_IN` in `.env` (default is 8h)
+2. Increase expiration time if needed
+3. Restart backend after changing: `docker compose restart drait-backend`
+
+### Cannot Access Certain Features
+
+If menus or features are missing:
+
+1. Verify your role: Check the top-right user menu
+2. Log out and log in as a different role if needed
+3. Some features are restricted based on role permissions
+
+## API Access with Authentication
+
+Developers can also access the API directly using the demo credentials:
+
+<Steps>
+  <Step title="Obtain a JWT token">
+    ```bash
+    curl -X POST http://localhost/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"owner@drait.local","password":"ChangeMe123!"}'
+    ```
+  </Step>
+
+  <Step title="Extract the token from response">
+    Response:
+    ```json
+    {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": 1,
+        "email": "owner@drait.local",
+        "role": "DUEÑO"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Use the token in subsequent requests">
+    ```bash
+    curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+      http://localhost/api/clients
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+- **Explore Features**: Try different roles to understand access levels
+- **Learn Workflows**: Follow the production process from quotation to delivery
+- **Configuration**: Review [Configuration](/getting-started/configuration) to customize your setup
+- **Production Setup**: Plan your production deployment with proper security measures
+- **User Management**: Learn how to create and manage real user accounts

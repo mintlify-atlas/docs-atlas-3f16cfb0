@@ -1,0 +1,282 @@
+---
+title: 'Role-Based Access Control'
+description: 'Permission matrix and role management in DRAIT Mini-MES'
+icon: 'shield-check'
+---
+
+## Overview
+
+DRAIT Mini-MES implements a role-based access control (RBAC) system with four distinct roles. Each user is assigned a single role that determines their permissions across the system.
+
+## User Roles
+
+The system defines four roles in the `UserRole` enum:
+
+| Role | Description | Access Level |
+|------|-------------|-------------|
+| **DUENO** | Owner with full system access | Complete control |
+| **SUPERVISOR** | Manages and supervises operations | High-level management |
+| **OPERARIO** | Plant operator | Operational tasks |
+| **ADMIN** | Technical administrator | System administration |
+
+<Info>
+Role definitions are found in `apps/backend/prisma/schema.prisma:13-18`
+</Info>
+
+## Permission Matrix
+
+Here's what each role can do across the system:
+
+### User Management
+
+| Action | DUENO | SUPERVISOR | OPERARIO | ADMIN |
+|--------|-------|------------|----------|---------|
+| List users | ✓ | ✓ | ✗ | ✓ |
+| Create users | ✓ | ✗ | ✗ | ✓ |
+| Update user profile | ✓ | ✗ | ✗ | ✓ |
+| Change user role | ✓ | ✗ | ✗ | ✓ |
+| Reset password | ✓ | ✗ | ✗ | ✓ |
+| Toggle user active/inactive | ✓ | ✗ | ✗ | ✓ |
+
+### Audit Logs
+
+| Action | DUENO | SUPERVISOR | OPERARIO | ADMIN |
+|--------|-------|------------|----------|---------|
+| View audit logs | ✓ | ✓ | ✗ | ✓ |
+| Filter audit logs | ✓ | ✓ | ✗ | ✓ |
+
+### General Pattern
+
+- **DUENO**: Full access to all operations
+- **SUPERVISOR**: Read access to reports and audit trails, operational management
+- **OPERARIO**: Limited to operational tasks (work orders, material consumption)
+- **ADMIN**: Technical administration and user management
+
+<Warning>
+Role changes are audited. Changing a user's role triggers an `AuditActionType.ROLE_CHANGE` entry.
+</Warning>
+
+## Access Control Implementation
+
+### Guards
+
+Two guards work together to protect endpoints:
+
+#### 1. JwtAuthGuard
+
+Validates JWT tokens and extracts user information.
+
+```typescript
+// src/common/auth/jwt-auth.guard.ts
+@Injectable()
+export class JwtAuthGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const authHeader = request.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token ausente o invalido');
+    }
+    
+    const token = authHeader.slice(7);
+    const payload = this.jwtService.verify<JwtUser>(token);
+    request.user = payload;
+    
+    return true;
+  }
+}
+```
+
+#### 2. RolesGuard
+
+Enforces role-based access control.
+
+```typescript
+// src/common/auth/roles.guard.ts
+@Injectable()
+export class RolesGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<Array<JwtUser['role']>>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()]
+    );
+
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const normalizedRole = this.normalizeRole(request.user?.role);
+
+    if (!normalizedRole || !requiredRoles.includes(normalizedRole)) {
+      throw new ForbiddenException('No tenes permisos para esta accion');
+    }
+
+    return true;
+  }
+}
+```
+
+### Decorators
+
+#### @Roles Decorator
+
+Defines which roles can access an endpoint.
+
+```typescript
+// src/common/auth/roles.decorator.ts
+export const Roles = (...roles: Array<'DUENO' | 'SUPERVISOR' | 'OPERARIO' | 'ADMIN'>) =>
+  SetMetadata(ROLES_KEY, roles);
+```
+
+**Usage example:**
+
+```typescript
+@Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class UsersController {
+  @Get()
+  @Roles('DUENO', 'SUPERVISOR', 'ADMIN')
+  findAll(@CurrentUser() user: JwtUser) {
+    // Only DUENO, SUPERVISOR, and ADMIN can list users
+  }
+
+  @Post()
+  @Roles('DUENO', 'ADMIN')
+  create(@CurrentUser() user: JwtUser, @Body() dto: CreateUserDto) {
+    // Only DUENO and ADMIN can create users
+  }
+}
+```
+
+#### @CurrentUser Decorator
+
+Extracts authenticated user information from the request.
+
+```typescript
+@Get('profile')
+getProfile(@CurrentUser() user: JwtUser) {
+  // user contains: { sub, companyId, role, email, fullName }
+}
+```
+
+## Managing User Roles
+
+### Creating Users with Roles
+
+When creating a user, specify the role in the request:
+
+```typescript
+POST /api/users
+{
+  "email": "operator@example.com",
+  "fullName": "Juan Pérez",
+  "role": "OPERARIO",
+  "password": "securePassword123"
+}
+```
+
+### Changing User Roles
+
+Only DUENO and ADMIN can change roles:
+
+```typescript
+PATCH /api/users/:id/role
+{
+  "role": "SUPERVISOR"
+}
+```
+
+<Note>
+Role changes are restricted to `SUPERVISOR`, `OPERARIO`, and `ADMIN`. The DUENO role cannot be assigned through the API.
+</Note>
+
+### Role Change Validation
+
+From `apps/backend/src/modules/users/users.service.ts:123-125`:
+
+```typescript
+if (role !== 'SUPERVISOR' && role !== 'OPERARIO' && role !== 'ADMIN') {
+  throw new BadRequestException('Solo se permiten perfiles SUPERVISOR, OPERARIO o ADMIN');
+}
+```
+
+## JWT Payload Structure
+
+Authenticated requests include a JWT token with the following payload:
+
+```typescript
+interface JwtUser {
+  sub: string;              // User ID
+  companyId: string;        // Company/tenant ID
+  role: 'DUENO' | 'SUPERVISOR' | 'OPERARIO' | 'ADMIN';
+  email: string;
+  fullName: string;
+}
+```
+
+## Multi-Tenancy
+
+All role checks are scoped to the user's company:
+
+```typescript
+const user = await this.prisma.user.findFirst({
+  where: {
+    id: userId,
+    companyId: user.companyId,  // Tenant isolation
+    isActive: true
+  }
+});
+```
+
+<Expandable title="Complete Controller Example">
+
+```typescript
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/auth/roles.guard';
+import { Roles } from '../../common/auth/roles.decorator';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { JwtUser } from '../../common/auth/jwt-user.interface';
+
+@Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class UsersController {
+  @Get()
+  @Roles('DUENO', 'SUPERVISOR', 'ADMIN')
+  findAll(@CurrentUser() user: JwtUser) {
+    return this.service.findAll(user.companyId);
+  }
+
+  @Post()
+  @Roles('DUENO', 'ADMIN')
+  create(@CurrentUser() user: JwtUser, @Body() dto: CreateUserDto) {
+    return this.service.create(user.companyId, dto, user.sub);
+  }
+
+  @Patch(':id/role')
+  @Roles('DUENO', 'ADMIN')
+  updateRole(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto
+  ) {
+    return this.service.updateRole(user.companyId, id, dto.role, user.sub);
+  }
+}
+```
+
+</Expandable>
+
+## Best Practices
+
+1. **Always use both guards**: Apply `@UseGuards(JwtAuthGuard, RolesGuard)` at the controller level
+2. **Principle of least privilege**: Grant the minimum role required for each operation
+3. **Audit role changes**: All role modifications are automatically logged to the audit trail
+4. **Multi-tenancy**: Always scope queries by `companyId` to ensure tenant isolation
+5. **Token expiration**: JWT tokens expire after 8 hours (configurable via `JWT_EXPIRES_IN`)
+
+## Related Pages
+
+- [Audit Trail](/advanced/audit-trail) - Track all role changes and user actions
+- [Data Model](/advanced/data-model) - User and Company entity schemas
+- [Authentication](/api/authentication) - Login and token management

@@ -1,0 +1,926 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for DRAIT Mini-MES deployment
+---
+
+## Overview
+
+This guide covers common deployment issues, diagnostic steps, and solutions for DRAIT Mini-MES. Use the accordion sections below to find solutions to specific problems.
+
+## Container Issues
+
+<Accordion title="Container won't start">
+  **Symptoms**:
+  - Container shows "Exited" or "Restarting" status
+  - `docker compose ps` shows container not running
+  - Services fail to become available
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check container status
+  docker compose ps
+  
+  # View recent logs
+  docker compose logs --tail=50 drait-backend
+  
+  # Check for error patterns
+  docker compose logs drait-backend | grep -i error
+  ```
+  
+  **Common Causes and Solutions**:
+  
+  1. **Missing environment variables**:
+     ```bash
+     # Check if .env exists
+     ls -la .env
+     
+     # Verify required variables
+     docker compose config | grep -E "DATABASE_URL|JWT_SECRET"
+     ```
+     
+     Solution: Copy `.env.example` to `.env` and configure all required variables.
+  
+  2. **Port conflicts**:
+     ```bash
+     # Check if ports are already in use
+     sudo lsof -i :80    # HTTP_PORT
+     sudo lsof -i :5432  # POSTGRES_PORT
+     sudo lsof -i :3000  # BACKEND_PORT
+     ```
+     
+     Solution: Change conflicting ports in `.env` or stop conflicting services.
+  
+  3. **Database not ready**:
+     Backend depends on database being healthy. Check database first:
+     ```bash
+     docker compose logs drait-db
+     docker compose ps drait-db
+     ```
+     
+     Solution: Ensure database starts successfully before backend.
+  
+  4. **Build failures**:
+     ```bash
+     # Rebuild with verbose output
+     docker compose build --no-cache drait-backend
+     ```
+     
+     Solution: Check for missing dependencies or network issues during build.
+</Accordion>
+
+<Accordion title="Container is unhealthy">
+  **Symptoms**:
+  - `docker compose ps` shows "Up (unhealthy)" status
+  - Health checks failing repeatedly
+  - Application intermittently unavailable
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check health check logs
+  docker inspect drait-backend | jq '.[0].State.Health'
+  
+  # View last 5 health check results
+  docker inspect drait-backend | jq '.[0].State.Health.Log[-5:]'
+  ```
+  
+  **Common Causes**:
+  
+  1. **Backend health endpoint not responding**:
+     ```bash
+     # Test health endpoint from inside container
+     docker compose exec drait-backend curl -f http://localhost:3000/api/auth/status
+     ```
+     
+     If this fails, check application logs for startup errors.
+  
+  2. **Database connection issues**:
+     Backend health depends on database connectivity:
+     ```bash
+     # Test database connection
+     docker compose exec drait-backend node -e "console.log(process.env.DATABASE_URL)"
+     ```
+     
+     Verify `DATABASE_URL` is correct.
+  
+  3. **Slow application startup**:
+     Backend has 30s start_period for initialization:
+     ```bash
+     # Check uptime
+     docker compose ps drait-backend
+     ```
+     
+     If container just started, wait 30 seconds for health checks to begin.
+  
+  **Solution**:
+  
+  ```bash
+  # Restart unhealthy container
+  docker compose restart drait-backend
+  
+  # If persistent, rebuild
+  docker compose up -d --build drait-backend
+  ```
+</Accordion>
+
+<Accordion title="Container keeps restarting">
+  **Symptoms**:
+  - Container repeatedly exits and restarts
+  - "Restarting (1) X seconds ago" in `docker compose ps`
+  - Logs show repeated initialization attempts
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check exit code
+  docker compose ps
+  
+  # View all logs including restarts
+  docker compose logs --tail=200 drait-backend
+  
+  # Check last exit reason
+  docker inspect drait-backend | jq '.[0].State'
+  ```
+  
+  **Common Causes**:
+  
+  1. **Application crash on startup**:
+     Look for error stack traces in logs:
+     ```bash
+     docker compose logs drait-backend | grep -A 10 -i "error\|exception\|failed"
+     ```
+  
+  2. **Missing database migrations**:
+     ```bash
+     # Run migrations
+     docker compose exec drait-backend npm run prisma:migrate
+     ```
+  
+  3. **Invalid DATABASE_URL**:
+     ```bash
+     # Verify database connection
+     docker compose exec drait-backend node -e "require('pg').Client({connectionString:process.env.DATABASE_URL}).connect().then(()=>console.log('OK')).catch(e=>console.error(e))"
+     ```
+  
+  **Solution**:
+  
+  Temporarily disable restart to see full error:
+  ```yaml docker-compose.yml
+  drait-backend:
+    # restart: unless-stopped  # Comment out
+    restart: "no"
+  ```
+  
+  Then:
+  ```bash
+  docker compose up drait-backend
+  # View error output directly
+  ```
+</Accordion>
+
+## Database Connection Errors
+
+<Accordion title="Error: database connection refused">
+  **Error Messages**:
+  - `ECONNREFUSED 127.0.0.1:5432`
+  - `Connection refused`
+  - `could not connect to server`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check database container is running
+  docker compose ps drait-db
+  
+  # Test database health
+  docker compose exec drait-db pg_isready -U drait -d drait_mes
+  
+  # Check if database port is listening
+  docker compose exec drait-db netstat -tlnp | grep 5432
+  ```
+  
+  **Common Causes**:
+  
+  1. **Wrong host in DATABASE_URL**:
+     ```bash .env
+     # WRONG - using localhost
+     DATABASE_URL=postgresql://drait:drait123@localhost:5432/drait_mes
+     
+     # CORRECT - using Docker service name
+     DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes
+     ```
+  
+  2. **Database container not started**:
+     ```bash
+     # Start database first
+     docker compose up -d drait-db
+     
+     # Wait for healthy status
+     docker compose ps drait-db
+     ```
+  
+  3. **Network issues**:
+     ```bash
+     # Check Docker network
+     docker network ls
+     docker network inspect drait-mini-mes_default
+     
+     # Recreate network
+     docker compose down
+     docker compose up -d
+     ```
+  
+  **Solution**:
+  
+  ```bash
+  # Verify DATABASE_URL uses correct service name
+  grep DATABASE_URL .env
+  
+  # Should be: drait-db (not localhost)
+  # Restart services
+  docker compose restart
+  ```
+</Accordion>
+
+<Accordion title="Error: password authentication failed">
+  **Error Messages**:
+  - `password authentication failed for user`
+  - `FATAL: password authentication failed`
+  - `Invalid username or password`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check environment variables
+  docker compose config | grep -E "POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL"
+  
+  # Verify database user exists
+  docker compose exec drait-db psql -U postgres -c "\du"
+  ```
+  
+  **Common Causes**:
+  
+  1. **Mismatch between .env values**:
+     ```bash .env
+     # Credentials must match!
+     POSTGRES_USER=drait
+     POSTGRES_PASSWORD=drait123
+     DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes
+     #                          ^^^^^ ^^^^^^^^ (must match above)
+     ```
+  
+  2. **Password changed without recreating container**:
+     Database stores credentials in volume. Changing `.env` doesn't update existing database.
+     
+     Solution:
+     ```bash
+     # Option 1: Reset database volume
+     docker compose down
+     docker volume rm drait-mini-mes_postgres_data
+     docker compose up -d
+     
+     # Option 2: Change password inside database
+     docker compose exec drait-db psql -U postgres -c "ALTER USER drait WITH PASSWORD 'new_password';"
+     ```
+  
+  3. **Special characters in password**:
+     URL-encode special characters in DATABASE_URL:
+     ```bash
+     # If password is: p@ssw0rd!
+     # URL encode as: p%40ssw0rd%21
+     DATABASE_URL=postgresql://drait:p%40ssw0rd%21@drait-db:5432/drait_mes
+     ```
+  
+  **Solution**:
+  
+  ```bash
+  # Simplest: Reset everything
+  docker compose down -v
+  # Verify .env has consistent credentials
+  cat .env | grep -E "POSTGRES|DATABASE_URL"
+  # Restart
+  docker compose up -d
+  ```
+</Accordion>
+
+<Accordion title="Error: database does not exist">
+  **Error Messages**:
+  - `database "drait_mes" does not exist`
+  - `FATAL: database "X" does not exist`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # List databases
+  docker compose exec drait-db psql -U drait -c "\l"
+  
+  # Check POSTGRES_DB setting
+  docker compose config | grep POSTGRES_DB
+  ```
+  
+  **Solution**:
+  
+  1. **Create database manually**:
+     ```bash
+     docker compose exec drait-db psql -U drait -c "CREATE DATABASE drait_mes;"
+     ```
+  
+  2. **Or recreate database container**:
+     ```bash
+     docker compose stop drait-db
+     docker compose rm drait-db
+     docker compose up -d drait-db
+     ```
+     
+     The `POSTGRES_DB` environment variable will create the database on first start.
+  
+  3. **Verify .env configuration**:
+     ```bash .env
+     POSTGRES_DB=drait_mes
+     DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes
+     #                                                           ^^^^^^^^^ (must match)
+     ```
+</Accordion>
+
+## Migration Errors
+
+<Accordion title="Error: Prisma migration failed">
+  **Error Messages**:
+  - `Migration failed`
+  - `Error: P1001: Can't reach database server`
+  - `Relation already exists`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check Prisma can connect
+  docker compose exec drait-backend npx prisma db execute --stdin <<< "SELECT 1;"
+  
+  # View Prisma status
+  docker compose exec drait-backend npx prisma migrate status
+  
+  # Check database schema
+  docker compose exec drait-db psql -U drait -d drait_mes -c "\dt"
+  ```
+  
+  **Common Causes**:
+  
+  1. **Database not initialized**:
+     ```bash
+     # Run migrations
+     docker compose exec drait-backend npm run prisma:migrate
+     ```
+  
+  2. **Enum normalization needed**:
+     DRAIT uses Spanish enum values:
+     ```bash
+     # Run enum normalization first
+     docker compose exec drait-backend npm run prisma:normalize-enums
+     docker compose exec drait-backend npm run prisma:generate
+     ```
+  
+  3. **Conflicting schema changes**:
+     ```bash
+     # Reset database and re-migrate (DANGER: loses data)
+     docker compose exec drait-db psql -U drait -d drait_mes -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+     docker compose exec drait-backend npm run prisma:migrate
+     ```
+  
+  4. **Prisma client out of sync**:
+     ```bash
+     # Regenerate Prisma client
+     docker compose exec drait-backend npm run prisma:generate
+     docker compose restart drait-backend
+     ```
+  
+  **Solution**:
+  
+  ```bash
+  # Full migration process
+  docker compose exec drait-backend npm run prisma:normalize-enums
+  docker compose exec drait-backend npm run prisma:generate
+  docker compose exec drait-backend npm run prisma:migrate
+  docker compose restart drait-backend
+  ```
+</Accordion>
+
+<Accordion title="Error: Relation already exists">
+  **Error Message**:
+  - `relation "WorkOrder" already exists`
+  - `ERROR: relation "X" already exists`
+  
+  **Cause**: Running migrations on a database that already has the schema.
+  
+  **Solution**:
+  
+  Option 1: Skip if intentional
+  ```bash
+  # Mark migrations as applied
+  docker compose exec drait-backend npx prisma migrate resolve --applied MIGRATION_NAME
+  ```
+  
+  Option 2: Reset database (development only)
+  ```bash
+  docker compose down
+  docker volume rm drait-mini-mes_postgres_data
+  docker compose up -d
+  docker compose exec drait-backend npm run prisma:migrate
+  ```
+  
+  Option 3: Use db push instead (for prototyping)
+  ```bash
+  # This is what prisma:migrate uses
+  docker compose exec drait-backend npx prisma db push
+  ```
+</Accordion>
+
+## Frontend Build Errors
+
+<Accordion title="Frontend container build fails">
+  **Symptoms**:
+  - `docker compose build drait-frontend` fails
+  - Vite build errors in logs
+  - TypeScript compilation errors
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Build with verbose output
+  docker compose build --no-cache --progress=plain drait-frontend
+  
+  # Check if frontend Dockerfile exists
+  ls -la apps/frontend/Dockerfile
+  ```
+  
+  **Common Causes**:
+  
+  1. **Missing VITE_API_BASE_URL**:
+     ```bash .env
+     # Required for frontend build
+     VITE_API_BASE_URL=/api
+     ```
+  
+  2. **Node.js dependency issues**:
+     ```bash
+     # Try building locally to see errors
+     cd apps/frontend
+     npm install
+     npm run build
+     ```
+  
+  3. **TypeScript errors**:
+     Fix TypeScript issues in the code before building.
+  
+  4. **Network issues during npm install**:
+     ```bash
+     # Retry build
+     docker compose build --no-cache drait-frontend
+     ```
+  
+  **Solution**:
+  
+  ```bash
+  # Clean rebuild
+  docker compose build --no-cache drait-frontend
+  docker compose up -d drait-frontend
+  ```
+</Accordion>
+
+<Accordion title="Frontend shows blank page">
+  **Symptoms**:
+  - Browser shows white/blank page
+  - Console errors: "Failed to fetch" or CORS errors
+  - Network tab shows 404 for assets
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check frontend logs
+  docker compose logs drait-frontend
+  
+  # Check Nginx logs
+  docker compose logs drait-nginx | grep -v "200"
+  
+  # Access frontend container directly
+  docker compose exec drait-frontend ls /usr/share/nginx/html
+  ```
+  
+  **Common Causes**:
+  
+  1. **Frontend not built**:
+     ```bash
+     # Check if dist folder exists in container
+     docker compose exec drait-frontend ls -la /usr/share/nginx/html/
+     
+     # Should contain: index.html, assets/, etc.
+     ```
+     
+     Solution: Rebuild frontend
+     ```bash
+     docker compose build --no-cache drait-frontend
+     docker compose up -d drait-frontend
+     ```
+  
+  2. **Nginx routing misconfigured**:
+     Check `infra/nginx/default.conf:16`:
+     ```nginx
+     location / {
+       proxy_pass http://drait-frontend:80;
+     }
+     ```
+     
+     Restart Nginx after config changes:
+     ```bash
+     docker compose restart drait-nginx
+     ```
+  
+  3. **Browser caching**:
+     Hard refresh: Ctrl+Shift+R (Chrome/Firefox) or Cmd+Shift+R (Mac)
+  
+  4. **VITE_API_BASE_URL mismatch**:
+     If API calls fail, rebuild with correct VITE_API_BASE_URL:
+     ```bash
+     docker compose up -d --build drait-frontend
+     ```
+</Accordion>
+
+## Nginx Configuration Issues
+
+<Accordion title="Nginx returns 502 Bad Gateway">
+  **Error**: HTTP 502 when accessing the application
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check Nginx error logs
+  docker compose logs drait-nginx | grep -i "502\|upstream"
+  
+  # Check backend is running
+  docker compose ps drait-backend
+  
+  # Test backend from Nginx container
+  docker compose exec drait-nginx wget -O- http://drait-backend:3000/api/auth/status
+  ```
+  
+  **Common Causes**:
+  
+  1. **Backend not running**:
+     ```bash
+     docker compose ps drait-backend
+     # Should show "Up" status
+     
+     docker compose restart drait-backend
+     ```
+  
+  2. **Backend not ready**:
+     Backend health check may still be initializing (30s start_period):
+     ```bash
+     # Wait and check health
+     watch docker compose ps
+     ```
+  
+  3. **Wrong upstream in Nginx config**:
+     Check `infra/nginx/default.conf:8`:
+     ```nginx
+     proxy_pass http://drait-backend:3000/api/;
+     #                  ^^^^^^^^^^^^^ (must match service name)
+     ```
+  
+  4. **Network connectivity**:
+     ```bash
+     # Check Docker network
+     docker network inspect drait-mini-mes_default | grep -A 5 drait-backend
+     docker network inspect drait-mini-mes_default | grep -A 5 drait-nginx
+     ```
+  
+  **Solution**:
+  
+  ```bash
+  # Restart all services
+  docker compose restart
+  
+  # If persistent, recreate
+  docker compose down
+  docker compose up -d
+  ```
+</Accordion>
+
+<Accordion title="Nginx returns 404 Not Found">
+  **Error**: HTTP 404 for valid routes
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check Nginx access logs
+  docker compose logs drait-nginx | grep -i "404"
+  
+  # Test specific endpoints
+  curl -v http://localhost/api/auth/status
+  curl -v http://localhost/
+  ```
+  
+  **Common Causes**:
+  
+  1. **Incorrect location blocks**:
+     Check `infra/nginx/default.conf`:
+     ```nginx
+     location /api/ {
+       proxy_pass http://drait-backend:3000/api/;
+     }
+     
+     location / {
+       proxy_pass http://drait-frontend:80;
+     }
+     ```
+  
+  2. **Frontend routing (SPA)**:
+     For React Router, add:
+     ```nginx
+     location / {
+       try_files $uri $uri/ /index.html;
+     }
+     ```
+  
+  3. **Trailing slash issues**:
+     Ensure consistent trailing slashes in `proxy_pass`.
+  
+  **Solution**:
+  
+  ```bash
+  # After editing infra/nginx/default.conf
+  docker compose restart drait-nginx
+  
+  # Test configuration
+  docker compose exec drait-nginx nginx -t
+  ```
+</Accordion>
+
+<Accordion title="CORS errors in browser console">
+  **Error Messages**:
+  - `Access to fetch at '...' has been blocked by CORS policy`
+  - `No 'Access-Control-Allow-Origin' header`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check CORS_ORIGIN setting
+  docker compose config | grep CORS_ORIGIN
+  
+  # Test CORS headers
+  curl -H "Origin: http://localhost" \
+       -H "Access-Control-Request-Method: GET" \
+       -I http://localhost/api/auth/status
+  ```
+  
+  **Solution**:
+  
+  1. **Update CORS_ORIGIN in .env**:
+     ```bash .env
+     # For development
+     CORS_ORIGIN=http://localhost
+     
+     # For production (specific domain)
+     CORS_ORIGIN=https://mes.yourdomain.com
+     
+     # For multiple origins (comma-separated)
+     CORS_ORIGIN=https://mes.yourdomain.com,https://app.yourdomain.com
+     ```
+  
+  2. **Restart backend**:
+     ```bash
+     docker compose restart drait-backend
+     ```
+  
+  3. **Check browser origin**:
+     Ensure browser URL matches CORS_ORIGIN value.
+</Accordion>
+
+## Port Conflicts
+
+<Accordion title="Error: port is already allocated">
+  **Error Messages**:
+  - `bind: address already in use`
+  - `port is already allocated`
+  - `Cannot start service: Ports are not available`
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check what's using the ports
+  sudo lsof -i :80
+  sudo lsof -i :5432
+  
+  # On Linux
+  sudo netstat -tlnp | grep -E "80|5432"
+  
+  # On macOS
+  sudo lsof -iTCP -sTCP:LISTEN -P | grep -E "80|5432"
+  ```
+  
+  **Solutions**:
+  
+  Option 1: Stop conflicting service
+  ```bash
+  # Find process ID from lsof output
+  sudo kill <PID>
+  
+  # Or stop system service
+  sudo systemctl stop apache2  # Example
+  sudo systemctl stop nginx    # Example
+  ```
+  
+  Option 2: Change DRAIT ports in `.env`
+  ```bash .env
+  # Use alternative ports
+  HTTP_PORT=8080
+  POSTGRES_PORT=5433
+  ```
+  
+  Then:
+  ```bash
+  docker compose down
+  docker compose up -d
+  ```
+  
+  Access on new port: `http://localhost:8080`
+</Accordion>
+
+## Performance Issues
+
+<Accordion title="Application is slow">
+  **Symptoms**:
+  - Pages load slowly
+  - API requests timeout
+  - High CPU or memory usage
+  
+  **Diagnostic Steps**:
+  
+  ```bash
+  # Check resource usage
+  docker stats
+  
+  # Check container health
+  docker compose ps
+  
+  # Check for slow queries
+  docker compose exec drait-db psql -U drait -d drait_mes -c "
+    SELECT pid, now() - query_start as duration, query
+    FROM pg_stat_activity
+    WHERE state != 'idle' AND now() - query_start > interval '1 second'
+    ORDER BY duration DESC;
+  "
+  ```
+  
+  **Solutions**:
+  
+  1. **Database performance**:
+     ```bash
+     # Check database cache hit ratio
+     docker compose exec drait-db psql -U drait -d drait_mes -c "
+       SELECT round(100.0 * blks_hit / NULLIF(blks_hit + blks_read, 0), 2) as cache_hit_ratio
+       FROM pg_stat_database
+       WHERE datname = 'drait_mes';
+     "
+     # Should be > 90%
+     ```
+  
+  2. **Increase container resources**:
+     ```yaml docker-compose.yml
+     services:
+       drait-backend:
+         deploy:
+           resources:
+             limits:
+               cpus: '2'
+               memory: 2G
+     ```
+  
+  3. **Check disk I/O**:
+     ```bash
+     # Check disk space
+     docker compose exec drait-db df -h
+     
+     # Check volume size
+     docker system df -v | grep postgres
+     ```
+  
+  4. **Optimize database**:
+     ```bash
+     # Vacuum database
+     docker compose exec drait-db psql -U drait -d drait_mes -c "VACUUM ANALYZE;"
+     ```
+</Accordion>
+
+## Log Analysis
+
+<Accordion title="How to find errors in logs">
+  **Useful log commands**:
+  
+  <CodeGroup>
+  ```bash Search for Errors
+  # All services
+  docker compose logs | grep -i "error\|exception\|fatal"
+  
+  # Specific service
+  docker compose logs drait-backend | grep -i error
+  
+  # With context (5 lines before/after)
+  docker compose logs drait-backend | grep -B 5 -A 5 -i error
+  ```
+  
+  ```bash Recent Issues
+  # Last 50 lines with timestamps
+  docker compose logs --tail=50 -t drait-backend
+  
+  # Last 10 minutes
+  docker compose logs --since 10m drait-backend
+  
+  # Specific time range
+  docker compose logs --since "2026-03-13T14:00:00" --until "2026-03-13T15:00:00"
+  ```
+  
+  ```bash Follow Logs Live
+  # Follow all services
+  docker compose logs -f
+  
+  # Follow specific service
+  docker compose logs -f drait-backend
+  
+  # Follow multiple services
+  docker compose logs -f drait-backend drait-db
+  ```
+  
+  ```bash Filter by Pattern
+  # Database connection errors
+  docker compose logs | grep -i "connection.*refused\|timeout\|econnrefused"
+  
+  # Authentication errors
+  docker compose logs | grep -i "authentication\|unauthorized\|403\|401"
+  
+  # HTTP errors
+  docker compose logs drait-nginx | grep -E '" [45][0-9]{2} '
+  ```
+  </CodeGroup>
+</Accordion>
+
+## Getting Help
+
+### Collecting Diagnostic Information
+
+When reporting issues, provide:
+
+```bash
+# 1. System information
+docker version
+docker compose version
+uname -a
+
+# 2. Container status
+docker compose ps
+
+# 3. Recent logs
+docker compose logs --tail=100 > drait_logs.txt
+
+# 4. Container inspection
+docker inspect drait-backend > backend_inspect.json
+
+# 5. Environment (sanitized)
+docker compose config > config_sanitized.yml
+```
+
+### Reset Everything (Nuclear Option)
+
+<Warning>
+  This will **delete all data**. Only use as a last resort in development.
+</Warning>
+
+```bash
+# Stop and remove everything
+docker compose down -v
+
+# Remove images
+docker compose down --rmi all
+
+# Clean Docker system
+docker system prune -af
+
+# Remove volumes explicitly
+docker volume rm drait-mini-mes_postgres_data
+
+# Start fresh
+cp .env.example .env
+# Edit .env with your settings
+docker compose build --no-cache
+docker compose up -d
+docker compose exec drait-backend npm run prisma:migrate
+docker compose exec drait-backend npm run prisma:seed
+```
+
+## Next Steps
+
+- Review [Docker Setup](/deployment/docker-setup) for proper configuration
+- Check [Environment Variables](/deployment/environment-variables) are correctly set
+- Verify [Database Setup](/deployment/database-setup) was completed
+- Set up [Monitoring](/deployment/monitoring) to catch issues early
+- Implement [Backup & Restore](/deployment/backup-restore) before making changes

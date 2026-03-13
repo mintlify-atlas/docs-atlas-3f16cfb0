@@ -1,0 +1,473 @@
+---
+title: Users
+description: Manage system users and access control
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/users
+
+Retrieve all users for the authenticated user's company.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Query Parameters
+
+<ParamField query="role" type="string">
+  Filter by user role: `DUENO`, `SUPERVISOR`, `ADMIN`, `OPERARIO`
+</ParamField>
+
+<ParamField query="active" type="string">
+  Filter by active status: `true` or `false`
+</ParamField>
+
+### Response
+
+Returns an array of user objects.
+
+<ResponseField name="id" type="string">User ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="email" type="string">Email address</ResponseField>
+<ResponseField name="fullName" type="string">Full name</ResponseField>
+<ResponseField name="role" type="string">User role</ResponseField>
+<ResponseField name="isActive" type="boolean">Active status</ResponseField>
+<ResponseField name="createdAt" type="string">Creation timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">Last update timestamp</ResponseField>
+
+<Note>
+  The `passwordHash` field is never exposed in API responses for security.
+</Note>
+
+### Example
+
+<CodeGroup>
+```bash cURL (All users)
+curl http://localhost:3000/api/users \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Operators only)
+curl "http://localhost:3000/api/users?role=OPERARIO" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Active users)
+curl "http://localhost:3000/api/users?active=true" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxu123abc",
+    "companyId": "clx456def",
+    "email": "admin@company.com",
+    "fullName": "Admin User",
+    "role": "ADMIN",
+    "isActive": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-03-13T10:00:00.000Z"
+  },
+  {
+    "id": "clxu789ghi",
+    "companyId": "clx456def",
+    "email": "juan.perez@company.com",
+    "fullName": "Juan Pérez",
+    "role": "OPERARIO",
+    "isActive": true,
+    "createdAt": "2026-01-15T00:00:00.000Z",
+    "updatedAt": "2026-02-20T14:30:00.000Z"
+  }
+]
+```
+
+---
+
+## POST /api/users
+
+Create a new user.
+
+<Warning>
+  **Required Roles:** DUENO or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address (must be unique within company)
+</ParamField>
+
+<ParamField body="fullName" type="string" required>
+  User's full name
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password (minimum 6 characters)
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  User role: `DUENO`, `SUPERVISOR`, `ADMIN`, or `OPERARIO`
+</ParamField>
+
+### Response
+
+Returns the created user object (without password).
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/users \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "maria.garcia@company.com",
+    "fullName": "María García",
+    "password": "securepass123",
+    "role": "SUPERVISOR"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/users', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'maria.garcia@company.com',
+    fullName: 'María García',
+    password: 'securepass123',
+    role: 'SUPERVISOR'
+  })
+});
+
+const user = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxu456def",
+  "companyId": "clx456def",
+  "email": "maria.garcia@company.com",
+  "fullName": "María García",
+  "role": "SUPERVISOR",
+  "isActive": true,
+  "createdAt": "2026-03-13T10:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+<Note>
+  Passwords are automatically hashed using bcrypt before storage. The plaintext password is never stored.
+</Note>
+
+---
+
+## PATCH /api/users/toggle-active
+
+Toggle a user's active status (enable/disable account).
+
+<Warning>
+  **Required Roles:** DUENO or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="id" type="string" required>
+  User ID to toggle
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/users/toggle-active \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "clxu789ghi"}'
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxu789ghi",
+  "email": "juan.perez@company.com",
+  "fullName": "Juan Pérez",
+  "role": "OPERARIO",
+  "isActive": false,
+  "updatedAt": "2026-03-13T10:30:00.000Z"
+}
+```
+
+<Note>
+  Disabling a user prevents them from logging in but preserves all historical data and assignments.
+</Note>
+
+---
+
+## PATCH /api/users/:id/role
+
+Update a user's role.
+
+<Warning>
+  **Required Roles:** DUENO or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="role" type="string" required>
+  New role: `DUENO`, `SUPERVISOR`, `ADMIN`, or `OPERARIO`
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/users/clxu789ghi/role \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "SUPERVISOR"}'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:3000/api/users/clxu789ghi/role',
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ role: 'SUPERVISOR' })
+  }
+);
+```
+</CodeGroup>
+
+<Warning>
+  Changing a user's role immediately affects their access permissions. Ensure the user is aware of role changes.
+</Warning>
+
+---
+
+## PATCH /api/users/:id/profile
+
+Update a user's profile information.
+
+<Warning>
+  **Required Roles:** DUENO or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="fullName" type="string">
+  Updated full name
+</ParamField>
+
+<ParamField body="email" type="string">
+  Updated email address (must be unique)
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/users/clxu789ghi/profile \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Juan Pérez Márquez",
+    "email": "juan.perez.marquez@company.com"
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/users/:id/password
+
+Change a user's password.
+
+<Warning>
+  **Required Roles:** DUENO or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="password" type="string" required>
+  New password (minimum 6 characters)
+</ParamField>
+
+### Response
+
+Returns success confirmation.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/users/clxu789ghi/password \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "newSecurePass456"}'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:3000/api/users/clxu789ghi/password',
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ password: 'newSecurePass456' })
+  }
+);
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password updated successfully"
+}
+```
+
+<Note>
+  Password changes are logged in the audit trail. Users should be notified when their password is changed by an administrator.
+</Note>
+
+---
+
+## GET /api/users/status
+
+Check users service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/users/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## User Roles
+
+<ResponseField name="DUENO" type="role">
+  **Owner** - Full system access, can manage all users and settings
+</ResponseField>
+
+<ResponseField name="SUPERVISOR" type="role">
+  **Supervisor** - Manage operations, work orders, clients, quotations, and resources
+</ResponseField>
+
+<ResponseField name="ADMIN" type="role">
+  **Administrator** - Technical administrator with user management and system configuration access
+</ResponseField>
+
+<ResponseField name="OPERARIO" type="role">
+  **Operator** - Plant operator with access to assigned work orders and basic operations
+</ResponseField>
+
+### Permission Matrix
+
+| Feature | DUENO | SUPERVISOR | ADMIN | OPERARIO |
+|---------|-------|------------|-------|----------|
+| Manage Users | ✓ | ✗ | ✓ | ✗ |
+| Create Clients | ✓ | ✓ | ✓ | ✗ |
+| Create Quotations | ✓ | ✓ | ✓ | ✗ |
+| Create Work Orders | ✓ | ✓ | ✓ | ✗ |
+| Update Work Order Status | ✓ | ✓ | ✓ | ✓ |
+| Manage Resources | ✓ | ✓ | ✓ | ✗ |
+| Manage Materials | ✓ | ✓ | ✓ | ✗ |
+| View Reports | ✓ | ✓ | ✓ | Limited |
+| View Audit Logs | ✓ | ✓ | ✓ | ✗ |
+
+---
+
+## Best Practices
+
+### User Management
+
+1. **Unique emails**: Each user must have a unique email within the company
+2. **Strong passwords**: Enforce minimum 6 characters (consider stronger requirements in production)
+3. **Role assignment**: Assign the least privileged role necessary for the user's responsibilities
+4. **Regular audits**: Periodically review user accounts and disable inactive users
+
+### Security
+
+1. **Password changes**: Force password changes for compromised accounts immediately
+2. **Role changes**: Document and communicate role changes to affected users
+3. **Active status**: Use the toggle-active endpoint instead of deleting users to preserve audit trails
+4. **Monitor access**: Review audit logs for suspicious user activity
+
+### Onboarding
+
+1. **Initial setup**: Create users with temporary passwords and instruct them to change on first login
+2. **Training**: Ensure users understand their role permissions and responsibilities
+3. **Documentation**: Provide role-specific documentation and training materials
+
+### Multi-Tenancy
+
+1. **Company isolation**: Users can only access data within their assigned company
+2. **Email uniqueness**: Emails must be unique per company (same email can exist across different companies)
+3. **Cross-company access**: Not supported - users belong to exactly one company

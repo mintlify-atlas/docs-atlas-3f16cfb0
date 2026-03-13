@@ -1,0 +1,685 @@
+---
+title: 'Data Model'
+description: 'Complete Prisma schema and entity relationships'
+icon: 'database'
+---
+
+## Overview
+
+DRAIT Mini-MES uses PostgreSQL with Prisma ORM. The schema defines 14 core entities with relationships that model a complete manufacturing execution system with multi-tenant support.
+
+## Multi-Tenancy
+
+All data is isolated by company (tenant):
+
+```prisma
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  legalName String?
+  taxId     String?
+  settings  Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // All entities reference Company
+  users       User[]
+  clients     Client[]
+  quotations  Quotation[]
+  workOrders  WorkOrder[]
+  resources   Resource[]
+  materials   Material[]
+  auditLogs   AuditLog[]
+}
+```
+
+## Core Entities
+
+### User Management
+
+#### User
+
+Represents system users with role-based access.
+
+```prisma
+model User {
+  id                   String                @id @default(cuid())
+  companyId            String
+  email                String
+  fullName             String
+  passwordHash         String                // bcrypt hashed
+  role                 UserRole              // DUENO | SUPERVISOR | OPERARIO | ADMIN
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdQuotations    Quotation[]           @relation("QuotationCreator")
+  createdWorkOrders    WorkOrder[]           @relation("WorkOrderCreator")
+  closedWorkOrders     WorkOrder[]           @relation("WorkOrderCloser")
+  assignments          WorkOrderAssignment[] @relation("WorkOrderUserAssignments")
+  materialConsumptions MaterialConsumption[]
+  operationLogs        OperationLog[]
+  auditLogs            AuditLog[]
+
+  @@unique([companyId, email])
+  @@index([companyId, role])
+}
+```
+
+**Key Fields:**
+- `passwordHash`: Bcrypt hashed password (never store plaintext)
+- `role`: One of four system roles (see [Role-Based Access Control](/advanced/role-permissions))
+- `isActive`: Soft delete flag
+
+**Unique Constraint:**
+- Email must be unique within a company
+
+### Commercial Entities
+
+#### Client
+
+Customers who receive quotations and work orders.
+
+```prisma
+model Client {
+  id         String      @id @default(cuid())
+  companyId  String
+  name       String
+  contact    String?
+  phone      String?
+  email      String?
+  address    String?
+  notes      String?
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quotations Quotation[]
+  workOrders WorkOrder[]
+
+  @@index([companyId, name])
+  @@index([companyId, isActive])
+}
+```
+
+#### Quotation
+
+Estimates and proposals sent to clients.
+
+```prisma
+model Quotation {
+  id                 String          @id @default(cuid())
+  companyId          String
+  clientId           String
+  createdByUserId    String?
+  code               String          // e.g., Q-2026-001
+  title              String
+  description        String
+  estimatedTimeMin   Int             // Minutes
+  estimatedCost      Decimal         @db.Decimal(12, 2)
+  estimatedMaterials String?
+  attachmentUrl      String?
+  status             QuotationStatus @default(BORRADOR)
+  approvedAt         DateTime?
+  validUntil         DateTime?       // Expiration date
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  
+  company            Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client             Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdByUser      User?           @relation("QuotationCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items              QuotationItem[]
+  workOrders         WorkOrder[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+}
+```
+
+**Status Flow:**
+```
+BORRADOR → ENVIADO → APROBADO / RECHAZADO
+```
+
+#### QuotationItem
+
+Line items within a quotation.
+
+```prisma
+model QuotationItem {
+  id                String    @id @default(cuid())
+  quotationId       String
+  description       String
+  quantity          Decimal   @db.Decimal(12, 3)
+  unit              String
+  estimatedUnitCost Decimal   @db.Decimal(12, 2)
+  estimatedHoursMin Int?
+  position          Int       @default(0) // Display order
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  quotation         Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId, position])
+}
+```
+
+### Operational Core
+
+#### WorkOrder
+
+The central entity for manufacturing execution.
+
+```prisma
+model WorkOrder {
+  id                   String               @id @default(cuid())
+  companyId            String
+  clientId             String
+  quotationId          String?
+  createdByUserId      String?
+  code                 String               // e.g., OT-2026-001
+  title                String
+  description          String
+  status               WorkOrderStatus      @default(PENDIENTE)
+  priority             Int                  @default(3) // 1=high, 5=low
+  plannedDate          DateTime?
+  commitmentDate       DateTime?
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  deliveredAt          DateTime?
+  closedAt             DateTime?
+  closedByUserId       String?
+  deliveryChecklist    String?
+  deliveryNote         String?
+  notes                String?
+  attachmentUrl        String?              // Signed delivery receipt
+  isSigned             Boolean              @default(false)
+  dashboardUrl         String?              // Grafana/monitoring URL
+  estimatedTimeMin     Int
+  estimatedCost        Decimal              @db.Decimal(12, 2)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  
+  company              Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client               Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  quotation            Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  createdByUser        User?                @relation("WorkOrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  closedByUser         User?                @relation("WorkOrderCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  assignments          WorkOrderAssignment[]
+  operationLogs        OperationLog[]
+  materialConsumptions MaterialConsumption[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, commitmentDate])
+}
+```
+
+**Status Flow:**
+```
+PENDIENTE → PLANIFICADA → EN_PROCESO → PAUSADA (optional)
+         ↓
+    FINALIZADA → ENTREGADA
+         ↓
+    CANCELADA | RETRABAJO
+```
+
+**Key Fields:**
+- `priority`: 1 (highest) to 5 (lowest)
+- `isSigned`: Indicates signed delivery receipt
+- `dashboardUrl`: Link to real-time monitoring (e.g., Grafana)
+
+### Resource Management
+
+#### Resource
+
+Machines and human resources in the plant.
+
+```prisma
+model Resource {
+  id            String                @id @default(cuid())
+  companyId     String
+  type          ResourceType          // HUMANO | MAQUINA
+  name          String
+  sector        String?
+  status        ResourceStatus        @default(DISPONIBLE)
+  notes         String?
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignments   WorkOrderAssignment[]
+  operationLogs OperationLog[]
+
+  @@index([companyId, type, isActive])
+  @@index([companyId, status])
+}
+```
+
+**Resource Status:**
+- `DISPONIBLE`: Available for assignment
+- `OCUPADO`: Currently assigned
+- `MANTENIMIENTO`: Under maintenance
+- `FUERA_DE_LINEA`: Offline/unavailable
+
+#### WorkOrderAssignment
+
+Links resources and users to work orders.
+
+```prisma
+model WorkOrderAssignment {
+  id           String    @id @default(cuid())
+  companyId    String
+  workOrderId  String
+  resourceId   String
+  userId       String?
+  assignedAt   DateTime  @default(now())
+  unassignedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  resource     Resource  @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  user         User?     @relation("WorkOrderUserAssignments", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, workOrderId])
+  @@index([companyId, resourceId])
+}
+```
+
+### Operational Traceability
+
+#### OperationLog
+
+Event log for work order execution.
+
+```prisma
+model OperationLog {
+  id          String             @id @default(cuid())
+  companyId   String
+  workOrderId String
+  resourceId  String?
+  userId      String?
+  eventType   OperationEventType
+  eventAt     DateTime
+  pauseReason String?
+  note        String?
+  createdAt   DateTime           @default(now())
+  
+  workOrder   WorkOrder          @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  resource    Resource?          @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, workOrderId, eventAt])
+}
+```
+
+**Event Types:**
+- `OT_CREADA`: Work order created
+- `ASIGNADO`: Resource/operator assigned
+- `INICIO`: Work started
+- `PAUSA`: Paused
+- `REANUDACION`: Resumed
+- `FINALIZACION`: Finished
+- `CAMBIO_ESTADO`: Status changed
+- `MATERIAL_CONSUMIDO`: Material consumed
+- `NOTA`: Free-form note
+
+### Material Management
+
+#### Material
+
+Inventory items and supplies.
+
+```prisma
+model Material {
+  id           String                @id @default(cuid())
+  companyId    String
+  name         String
+  category     String?
+  unit         String
+  unitCost     Decimal               @db.Decimal(12, 2)
+  stock        Decimal               @default(0) @db.Decimal(12, 3)
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  consumptions MaterialConsumption[]
+  movements    MaterialMovement[]
+
+  @@index([companyId, name])
+  @@index([companyId, isActive])
+}
+```
+
+#### MaterialMovement
+
+Inventory transactions.
+
+```prisma
+model MaterialMovement {
+  id          String               @id @default(cuid())
+  companyId   String
+  materialId  String
+  type        MaterialMovementType // ENTRADA | AJUSTE | CONSUMO
+  quantity    Decimal              @db.Decimal(12, 3)
+  unitCost    Decimal              @db.Decimal(12, 2)
+  note        String?
+  createdAt   DateTime             @default(now())
+  
+  material    Material             @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, materialId, createdAt])
+}
+```
+
+**Movement Types:**
+- `ENTRADA`: Stock received
+- `AJUSTE`: Manual adjustment
+- `CONSUMO`: Material consumed
+
+#### MaterialConsumption
+
+Material usage linked to work orders.
+
+```prisma
+model MaterialConsumption {
+  id               String    @id @default(cuid())
+  companyId        String
+  workOrderId      String
+  materialId       String
+  createdByUserId  String?
+  quantity         Decimal   @db.Decimal(12, 3)
+  unitCostSnapshot Decimal   @db.Decimal(12, 2) // Frozen cost at consumption
+  note             String?
+  consumedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  
+  workOrder        WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  material         Material  @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  createdByUser    User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, workOrderId, consumedAt])
+}
+```
+
+<Info>
+`unitCostSnapshot` freezes the cost at the time of consumption, preserving accurate historical costing even if material prices change.
+</Info>
+
+### Audit & Compliance
+
+#### AuditLog
+
+Comprehensive audit trail. See [Audit Trail](/advanced/audit-trail) for details.
+
+```prisma
+model AuditLog {
+  id         String          @id @default(cuid())
+  companyId  String
+  userId     String?
+  entityType AuditEntityType
+  entityId   String
+  action     AuditActionType
+  before     Json?
+  after      Json?
+  metadata   Json?
+  createdAt  DateTime        @default(now())
+  
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, action])
+}
+```
+
+## Enum Types
+
+### UserRole
+
+```prisma
+enum UserRole {
+  DUENO      // Owner with full access
+  SUPERVISOR // Supervises and manages operations
+  OPERARIO   // Plant operator
+  ADMIN      // Technical administrator
+}
+```
+
+See [Role-Based Access Control](/advanced/role-permissions) for permission matrix.
+
+### QuotationStatus
+
+```prisma
+enum QuotationStatus {
+  BORRADOR    // Draft
+  ENVIADO     // Sent to client
+  APROBADO    // Approved
+  RECHAZADO   // Rejected
+}
+```
+
+### WorkOrderStatus
+
+```prisma
+enum WorkOrderStatus {
+  PENDIENTE     // Pending
+  PLANIFICADA   // Planned/scheduled
+  EN_PROCESO    // In progress
+  PAUSADA       // Paused
+  FINALIZADA    // Finished
+  ENTREGADA     // Delivered to client
+  CANCELADA     // Cancelled
+  RETRABAJO     // Rework due to non-conformance
+}
+```
+
+### ResourceType
+
+```prisma
+enum ResourceType {
+  HUMANO   // Person
+  MAQUINA  // Machine/equipment
+}
+```
+
+### ResourceStatus
+
+```prisma
+enum ResourceStatus {
+  DISPONIBLE      // Available
+  OCUPADO         // Busy
+  MANTENIMIENTO   // Under maintenance
+  FUERA_DE_LINEA  // Offline
+}
+```
+
+### OperationEventType
+
+```prisma
+enum OperationEventType {
+  OT_CREADA           // Work order created
+  ASIGNADO            // Resource/operator assigned
+  INICIO              // Started
+  PAUSA               // Paused
+  REANUDACION         // Resumed
+  FINALIZACION        // Finished
+  CAMBIO_ESTADO       // Status changed
+  MATERIAL_CONSUMIDO  // Material consumed
+  NOTA                // Note added
+}
+```
+
+### MaterialMovementType
+
+```prisma
+enum MaterialMovementType {
+  ENTRADA  // Stock received
+  AJUSTE   // Manual adjustment
+  CONSUMO  // Consumed
+}
+```
+
+### AuditEntityType
+
+```prisma
+enum AuditEntityType {
+  COMPANY
+  USER
+  CLIENT
+  QUOTATION
+  WORK_ORDER
+  RESOURCE
+  MATERIAL
+  AUTH
+}
+```
+
+### AuditActionType
+
+```prisma
+enum AuditActionType {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  ASSIGN
+  DELIVERY_CLOSE
+  PASSWORD_CHANGE
+  ROLE_CHANGE
+  SETTINGS_CHANGE
+  LOGIN
+}
+```
+
+## Entity Relationships
+
+### Relationship Diagram
+
+```
+Company (tenant root)
+├── User
+│   ├── createdQuotations → Quotation
+│   ├── createdWorkOrders → WorkOrder
+│   ├── closedWorkOrders → WorkOrder
+│   ├── assignments → WorkOrderAssignment
+│   ├── materialConsumptions → MaterialConsumption
+│   ├── operationLogs → OperationLog
+│   └── auditLogs → AuditLog
+├── Client
+│   ├── quotations → Quotation
+│   └── workOrders → WorkOrder
+├── Quotation
+│   ├── client → Client
+│   ├── createdByUser → User
+│   ├── items → QuotationItem[]
+│   └── workOrders → WorkOrder[]
+├── WorkOrder (operational core)
+│   ├── client → Client
+│   ├── quotation → Quotation?
+│   ├── createdByUser → User
+│   ├── closedByUser → User
+│   ├── assignments → WorkOrderAssignment[]
+│   ├── operationLogs → OperationLog[]
+│   └── materialConsumptions → MaterialConsumption[]
+├── Resource
+│   ├── assignments → WorkOrderAssignment[]
+│   └── operationLogs → OperationLog[]
+├── Material
+│   ├── consumptions → MaterialConsumption[]
+│   └── movements → MaterialMovement[]
+└── AuditLog
+    ├── user → User?
+    └── company → Company
+```
+
+### Cascade Behavior
+
+| Parent → Child | onDelete Behavior |
+|----------------|------------------|
+| Company → User | `Cascade` - Delete users when company deleted |
+| Company → WorkOrder | `Cascade` - Delete work orders when company deleted |
+| WorkOrder → OperationLog | `Cascade` - Delete logs when work order deleted |
+| Client → WorkOrder | `Restrict` - Prevent client deletion if work orders exist |
+| Material → MaterialConsumption | `Restrict` - Prevent material deletion if consumed |
+| User → WorkOrder | `SetNull` - Keep work order but clear user reference |
+
+## Key Constraints
+
+### Unique Constraints
+
+```prisma
+// Email unique within company
+@@unique([companyId, email]) // User
+
+// Codes unique within company
+@@unique([companyId, code])  // Quotation
+@@unique([companyId, code])  // WorkOrder
+```
+
+### Database Indexes
+
+Optimized queries by company and common filters:
+
+```prisma
+// User indexes
+@@index([companyId, role])
+
+// WorkOrder indexes
+@@index([companyId, status])
+@@index([companyId, commitmentDate])
+
+// AuditLog indexes
+@@index([companyId, createdAt])
+@@index([companyId, entityType, entityId])
+@@index([companyId, action])
+
+// Material indexes
+@@index([companyId, name])
+@@index([companyId, isActive])
+```
+
+## Schema Location
+
+The complete Prisma schema is located at:
+
+```
+apps/backend/prisma/schema.prisma
+```
+
+<Expandable title="Generate Prisma Client">
+
+After modifying the schema, regenerate the client:
+
+```bash
+cd apps/backend
+npx prisma generate
+```
+
+Create a migration:
+
+```bash
+npx prisma migrate dev --name description_of_changes
+```
+
+Apply migrations in production:
+
+```bash
+npx prisma migrate deploy
+```
+
+</Expandable>
+
+## Related Pages
+
+- [Role-Based Access Control](/advanced/role-permissions) - User roles and permissions
+- [Audit Trail](/advanced/audit-trail) - AuditLog entity details
+- [Work Order Management](/features/work-orders) - WorkOrder lifecycle
+- [Material & Inventory](/features/material-tracking) - Material tracking

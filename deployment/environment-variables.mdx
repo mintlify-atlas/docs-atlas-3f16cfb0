@@ -1,0 +1,506 @@
+---
+title: Environment Variables
+description: Complete reference of all environment variables for DRAIT Mini-MES deployment
+---
+
+## Overview
+
+DRAIT Mini-MES uses environment variables for configuration across all services. The `.env.example` file provides a template with default values.
+
+## Setup
+
+<Steps>
+  <Step title="Copy example file">
+    ```bash
+    cp .env.example .env
+    ```
+  </Step>
+  
+  <Step title="Edit configuration">
+    Update the `.env` file with your production values:
+    
+    ```bash
+    nano .env
+    # or
+    vim .env
+    ```
+  </Step>
+  
+  <Step title="Restart services">
+    After changing environment variables:
+    
+    ```bash
+    docker compose up -d --force-recreate
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Never commit `.env` files to version control. The `.env` file contains sensitive credentials and should be kept secure.
+</Warning>
+
+## Global Configuration
+
+### NODE_ENV
+
+- **Type**: String
+- **Default**: `development`
+- **Required**: Yes
+- **Description**: Node.js environment mode
+
+**Values**:
+- `development` - Development mode with verbose logging
+- `production` - Production mode with optimized performance
+
+```bash .env
+NODE_ENV=production
+```
+
+<Note>
+  In production, set this to `production` to enable optimizations and reduce log verbosity.
+</Note>
+
+### TZ
+
+- **Type**: String (IANA timezone)
+- **Default**: `America/Buenos_Aires`
+- **Required**: Yes
+- **Description**: System timezone for all services
+
+**Common Values**:
+- `America/Buenos_Aires`
+- `America/New_York`
+- `Europe/London`
+- `Asia/Tokyo`
+- `UTC`
+
+```bash .env
+TZ=America/Buenos_Aires
+```
+
+This affects:
+- Database timestamps
+- Backend logging
+- Application date/time displays
+
+## Database Configuration
+
+### POSTGRES_DB
+
+- **Type**: String
+- **Default**: `drait_mes`
+- **Required**: Yes
+- **Description**: PostgreSQL database name
+
+```bash .env
+POSTGRES_DB=drait_mes
+```
+
+### POSTGRES_USER
+
+- **Type**: String
+- **Default**: `drait`
+- **Required**: Yes
+- **Description**: PostgreSQL user for authentication
+
+```bash .env
+POSTGRES_USER=drait
+```
+
+### POSTGRES_PASSWORD
+
+- **Type**: String
+- **Default**: `drait123`
+- **Required**: Yes
+- **Description**: PostgreSQL user password
+
+```bash .env
+POSTGRES_PASSWORD=your_secure_password_here
+```
+
+<Warning>
+  **CRITICAL SECURITY**: Change the default password before deploying to production! Use a strong password with at least 16 characters including uppercase, lowercase, numbers, and symbols.
+</Warning>
+
+### POSTGRES_PORT
+
+- **Type**: Number
+- **Default**: `5432`
+- **Required**: Yes
+- **Description**: Host port mapping for PostgreSQL
+
+```bash .env
+POSTGRES_PORT=5432
+```
+
+Change this if port 5432 is already in use on your host:
+
+```bash .env
+POSTGRES_PORT=5433
+```
+
+### DATABASE_URL
+
+- **Type**: String (Connection URL)
+- **Default**: `postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public`
+- **Required**: Yes
+- **Description**: Full PostgreSQL connection string for Prisma
+
+**Format**: `postgresql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?schema=public`
+
+```bash .env
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+```
+
+<Note>
+  The host should be `drait-db` (Docker service name), not `localhost`. The internal Docker network resolves this to the database container.
+</Note>
+
+**Important**:
+- Must match `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`
+- Host is always `drait-db` (Docker service name)
+- Port is always `5432` (internal port, not `POSTGRES_PORT`)
+
+## Backend Configuration
+
+### BACKEND_PORT
+
+- **Type**: Number
+- **Default**: `3000`
+- **Required**: Yes
+- **Description**: Internal port for NestJS API server
+
+```bash .env
+BACKEND_PORT=3000
+```
+
+<Note>
+  This is the internal container port. It's not exposed to the host; traffic goes through Nginx.
+</Note>
+
+### JWT_SECRET
+
+- **Type**: String
+- **Default**: `change_this_secret`
+- **Required**: Yes
+- **Description**: Secret key for JWT token signing
+
+```bash .env
+JWT_SECRET=your_random_64_character_secret_key_here_generate_securely
+```
+
+<Warning>
+  **CRITICAL SECURITY**: You MUST change this before deploying to production! Use a cryptographically secure random string of at least 32 characters.
+</Warning>
+
+**Generate a secure secret**:
+
+<CodeGroup>
+```bash OpenSSL
+openssl rand -hex 32
+```
+
+```bash Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```bash Python
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+</CodeGroup>
+
+### JWT_EXPIRES_IN
+
+- **Type**: String (Time expression)
+- **Default**: `8h`
+- **Required**: Yes
+- **Description**: JWT token expiration time
+
+**Format**: Number + unit
+- `s` - seconds
+- `m` - minutes
+- `h` - hours
+- `d` - days
+
+**Examples**:
+
+```bash .env
+# 8 hours (default for production)
+JWT_EXPIRES_IN=8h
+
+# 24 hours
+JWT_EXPIRES_IN=24h
+
+# 7 days
+JWT_EXPIRES_IN=7d
+
+# 30 minutes (high security)
+JWT_EXPIRES_IN=30m
+```
+
+<Note>
+  Shorter expiration times improve security but require users to log in more frequently. 8 hours is a good balance for typical work shifts.
+</Note>
+
+### CORS_ORIGIN
+
+- **Type**: String (URL or wildcard)
+- **Default**: `http://localhost`
+- **Required**: Yes
+- **Description**: Allowed origins for Cross-Origin Resource Sharing
+
+**Examples**:
+
+```bash .env
+# Single origin (development)
+CORS_ORIGIN=http://localhost
+
+# Production domain
+CORS_ORIGIN=https://mes.yourdomain.com
+
+# Multiple origins (comma-separated)
+CORS_ORIGIN=https://mes.yourdomain.com,https://staging.yourdomain.com
+
+# Allow all (NOT recommended for production)
+CORS_ORIGIN=*
+```
+
+<Warning>
+  Never use `*` in production. Always specify exact domains to prevent unauthorized access.
+</Warning>
+
+## Frontend Configuration
+
+### VITE_API_BASE_URL
+
+- **Type**: String (URL path)
+- **Default**: `/api`
+- **Required**: Yes
+- **Description**: Base URL for API requests from the frontend
+
+```bash .env
+VITE_API_BASE_URL=/api
+```
+
+**How it works**:
+- Requests from browser go to `http://yourdomain.com/api/*`
+- Nginx proxies to `drait-backend:3000/api/*`
+- Frontend never directly contacts the backend
+
+<Note>
+  This is a build-time variable for Vite. Changes require rebuilding the frontend:
+  ```bash
+  docker compose up -d --build drait-frontend
+  ```
+</Note>
+
+**Alternative configurations**:
+
+```bash .env
+# Separate API domain
+VITE_API_BASE_URL=https://api.yourdomain.com
+
+# Development with different port
+VITE_API_BASE_URL=http://localhost:3000/api
+```
+
+## Nginx Configuration
+
+### HTTP_PORT
+
+- **Type**: Number
+- **Default**: `80`
+- **Required**: Yes
+- **Description**: Host port for HTTP traffic
+
+```bash .env
+HTTP_PORT=80
+```
+
+**Common scenarios**:
+
+<CodeGroup>
+```bash Standard HTTP
+# Standard HTTP port
+HTTP_PORT=80
+# Access: http://yourdomain.com
+```
+
+```bash Alternative Port
+# Non-standard port (no root required)
+HTTP_PORT=8080
+# Access: http://yourdomain.com:8080
+```
+
+```bash Behind Reverse Proxy
+# When behind Traefik/Nginx proxy
+HTTP_PORT=3080
+# Proxy forwards to localhost:3080
+```
+</CodeGroup>
+
+<Note>
+  Binding to port 80 on Linux typically requires root privileges. Consider using port 8080 or running behind a reverse proxy for better security.
+</Note>
+
+## Security Best Practices
+
+### Production Checklist
+
+<Steps>
+  <Step title="Change all default passwords">
+    - `POSTGRES_PASSWORD`: Use strong 16+ character password
+    - `JWT_SECRET`: Generate cryptographically secure 32+ byte secret
+  </Step>
+  
+  <Step title="Set production environment">
+    ```bash .env
+    NODE_ENV=production
+    ```
+  </Step>
+  
+  <Step title="Configure CORS properly">
+    ```bash .env
+    CORS_ORIGIN=https://yourdomain.com
+    ```
+    
+    Never use `*` in production.
+  </Step>
+  
+  <Step title="Use HTTPS in production">
+    Deploy behind a reverse proxy (Nginx, Traefik, Caddy) with SSL/TLS certificates.
+  </Step>
+  
+  <Step title="Restrict database port">
+    If you don't need external database access:
+    
+    ```yaml docker-compose.yml
+    # Remove or comment out:
+    # ports:
+    #   - "${POSTGRES_PORT}:5432"
+    ```
+  </Step>
+</Steps>
+
+### Credential Management
+
+<Warning>
+  **Never commit `.env` files!** 
+  
+  Ensure `.env` is in your `.gitignore`:
+  ```bash .gitignore
+  .env
+  .env.local
+  .env.production
+  ```
+</Warning>
+
+**Recommended practices**:
+
+1. **Use environment-specific files**:
+   - `.env.development`
+   - `.env.staging`
+   - `.env.production`
+
+2. **Store secrets securely**:
+   - Use secret management tools (HashiCorp Vault, AWS Secrets Manager)
+   - Use encrypted storage
+   - Limit access to production secrets
+
+3. **Rotate credentials regularly**:
+   - Change JWT_SECRET periodically (invalidates all tokens)
+   - Rotate database passwords
+   - Update after team member departures
+
+## Complete Example
+
+### Development Configuration
+
+```bash .env
+# Global
+NODE_ENV=development
+TZ=America/Buenos_Aires
+
+# Database
+POSTGRES_DB=drait_mes
+POSTGRES_USER=drait
+POSTGRES_PASSWORD=drait123
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+
+# Backend
+BACKEND_PORT=3000
+JWT_SECRET=change_this_secret
+JWT_EXPIRES_IN=8h
+CORS_ORIGIN=http://localhost
+
+# Frontend
+VITE_API_BASE_URL=/api
+
+# Nginx
+HTTP_PORT=80
+```
+
+### Production Configuration
+
+```bash .env
+# Global
+NODE_ENV=production
+TZ=America/Buenos_Aires
+
+# Database
+POSTGRES_DB=drait_mes_prod
+POSTGRES_USER=drait_prod
+POSTGRES_PASSWORD=Xy9#mK2$pL7!qR8@nW3&vB5^tF6*jH4
+POSTGRES_PORT=5432  # Can remove port exposure entirely
+DATABASE_URL=postgresql://drait_prod:Xy9#mK2$pL7!qR8@nW3&vB5^tF6*jH4@drait-db:5432/drait_mes_prod?schema=public
+
+# Backend
+BACKEND_PORT=3000
+JWT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2
+JWT_EXPIRES_IN=8h
+CORS_ORIGIN=https://mes.yourdomain.com
+
+# Frontend
+VITE_API_BASE_URL=/api
+
+# Nginx
+HTTP_PORT=80  # Behind reverse proxy with SSL
+```
+
+## Validation
+
+Verify your configuration:
+
+<CodeGroup>
+```bash Check Environment
+# View active environment variables
+docker compose config
+
+# Check specific service environment
+docker compose exec drait-backend env | grep -E "NODE_ENV|DATABASE_URL|JWT"
+```
+
+```bash Test Database Connection
+# Verify DATABASE_URL is correct
+docker compose exec drait-backend node -e "console.log(process.env.DATABASE_URL)"
+
+# Test connection
+docker compose exec drait-db psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT version();"
+```
+
+```bash Verify CORS
+# Check CORS headers (from external machine)
+curl -H "Origin: https://mes.yourdomain.com" \
+     -H "Access-Control-Request-Method: GET" \
+     -H "Access-Control-Request-Headers: Content-Type" \
+     -X OPTIONS http://yourdomain.com/api/auth/status -v
+```
+</CodeGroup>
+
+## Next Steps
+
+- Review [Docker Setup](/deployment/docker-setup) for container orchestration
+- Configure [Database Setup](/deployment/database-setup) with migrations
+- Set up [Monitoring](/deployment/monitoring) to track system health
+- Check [Troubleshooting](/deployment/troubleshooting) for common configuration issues

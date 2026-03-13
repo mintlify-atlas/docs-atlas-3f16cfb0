@@ -1,0 +1,226 @@
+---
+title: 'Supervisor Guide'
+description: 'Production planning, work order assignment, and real-time workshop monitoring for supervisors'
+icon: 'clipboard-list'
+---
+
+<Note>
+**For:** Supervisors and workshop managers  
+**Access:** Dashboard, Dispatch, Orders, Clients, Quotations, Resources, Materials, Reports, My Shift  
+**Responsibility:** Coordinate daily work, assign orders, and resolve operational issues
+</Note>
+
+## Your Role in the System
+
+As a supervisor, you are the **operational coordinator** of the workshop. Your job is to:
+
+✅ Distribute work among operators  
+✅ Monitor what's happening on the plant floor in real-time  
+✅ Detect and resolve delays before they reach the client  
+✅ Register workshop resources and materials
+
+---
+
+## Main Screen: The Dashboard
+
+When you log in, you see the **Management Dashboard** with metrics for the selected period.
+
+### Main KPIs
+
+<Accordion title="Production KPIs">
+  - **Open Orders**: Total active work orders in the system
+  - **In Process Now**: Work orders with operators working at this moment
+  - **Delayed**: Work orders past their delivery date without closing ⚠️
+  - **Closed**: Work orders completed in the period (3M / 6M / 12M)
+  - **Avg Time/WO**: Average hours per order
+  - **Active Operators**: How many are working this shift
+</Accordion>
+
+### Period Filter
+
+Use the **3M / 6M / 12M** buttons to view data from the last quarter, semester, or year.
+
+### Charts
+
+- **Production Trend**: Closed work orders + average hours per month
+- **Order Status**: Donut chart with distribution by status
+- **Revenue vs Cost**: Estimated billing vs real material cost
+- **Monthly Margin**: Gain/loss month by month
+
+### Alerts
+
+<Tip>
+If there are work orders with time or cost deviations, they appear in the **"Alertas operativas"** (Operational Alerts) section with two levels:
+
+- 🟡 **WARNING**: Near the limit
+- 🔴 **CRITICAL**: Exceeded threshold, needs immediate intervention
+</Tip>
+
+---
+
+## Dispatch Center (Supervisor)
+
+This is **the most important screen for daily work**.
+
+Find it in the menu → **"Despacho"** (Dispatch).
+
+### What Does It Show?
+
+**Shift KPIs (top row):**
+- Work orders in process / Paused / Delayed / Active operators
+
+**Work Orders in Execution:**
+
+Each card shows the active work order with:
+- Code + title + client
+- Status (color: green=in process, orange=paused, red=delayed)
+- Assigned operators and resources
+- Delivery date
+
+**Operators on Shift:**
+
+List of who is working on which work order
+
+**Pending Queue:**
+
+Next 10 work orders to dispatch, ordered by priority
+
+**Delayed Table:**
+
+Overdue work orders with days of delay
+
+<Note>
+This screen automatically updates every 30 seconds.
+</Note>
+
+---
+
+## Work Order Management
+
+From **"Órdenes"** (Orders) in the menu:
+
+### Creating a Work Order
+
+<Steps>
+  <Step title="Open Creation Form">
+    Click **"Nueva OT"** (New Work Order)
+  </Step>
+  <Step title="Fill Details">
+    Complete: title, client, description, delivery date, priority, estimated hours
+  </Step>
+  <Step title="Link Quotation (Optional)">
+    You can link it to an approved quotation
+  </Step>
+  <Step title="Create">
+    Click **"Crear"** (Create)
+  </Step>
+</Steps>
+
+### Assigning Operators and Resources
+
+<Steps>
+  <Step title="Open Work Order">
+    Open the work order detail
+  </Step>
+  <Step title="Assign Resources">
+    In the **"Recursos asignados"** (Assigned Resources) section, select the operator or machine
+  </Step>
+  <Step title="Operator Sees Work Order">
+    The operator will see the work order in their "Mi Turno" (My Shift) screen
+  </Step>
+</Steps>
+
+### Changing Work Order Status
+
+Valid statuses and their flow:
+
+```
+PENDIENTE → PLANIFICADA → EN_PROCESO ⇄ PAUSADA → FINALIZADA → ENTREGADA
+```
+
+You can change status from the orders list using the status selector or from the detail view.
+
+### Useful Filters
+
+<Accordion title="Filter Options">
+  - By **status**: view only IN_PROCESS, PAUSED, etc.
+  - By **client**: search work orders for a specific client
+  - By **operator**: view workload for a person
+</Accordion>
+
+---
+
+## Quotation Management
+
+From **"Presupuestos"** (Quotations):
+
+<Steps>
+  <Step title="Create Quotation">
+    Indicate client, items, and estimated values
+  </Step>
+  <Step title="Client Approves">
+    When the client approves, convert it to a Work Order
+  </Step>
+  <Step title="Convert to Work Order">
+    Click **"Convertir a OT"** — the work order is created with quotation data
+  </Step>
+</Steps>
+
+---
+
+## Workshop Resources
+
+From **"Recursos"** (Resources) you can view and manage:
+
+- **Human Resources**: operator name in the resource system (different from user)
+- **Machines and Tools**: lathes, milling machines, equipment, etc.
+
+Resources are assigned to work orders to register which person or machine does each job.
+
+---
+
+## Materials
+
+From **"Materiales"** (Materials) you can:
+
+- View the materials catalog with unit price
+- Add new materials
+- View historical registered consumption
+
+---
+
+## Productivity Reports
+
+From **"Reportes"** (Reports):
+
+- Hours worked by operator
+- Completed work orders
+- Deviations between estimated and real hours
+- Cost analysis
+
+---
+
+## Daily Operation Tips
+
+<Steps>
+  <Step title="First Thing in the Morning">
+    Check the Dispatch Center to see workshop status
+  </Step>
+  <Step title="During the Shift">
+    Verify Dashboard alerts
+  </Step>
+  <Step title="At Closing">
+    Review the pending queue for the next day
+  </Step>
+  <Step title="Weekly">
+    Look at Productivity Reports
+  </Step>
+</Steps>
+
+---
+
+<Note>
+**Related Guides:**
+- [Owner Guide](/guides/owner-guide) — Full system access and strategic decisions
+- [Operator Guide](/guides/operator-guide) — Daily operator workflow
+</Note>

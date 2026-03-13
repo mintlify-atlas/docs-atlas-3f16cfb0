@@ -1,0 +1,605 @@
+---
+title: 'Material Tracking & Inventory'
+description: 'Real-time inventory management with consumption logging and stock adjustments'
+icon: 'boxes-stacked'
+---
+
+## Overview
+
+The Material Tracking module provides real-time inventory control for raw materials, components, and consumables used in production. It integrates directly with work orders to track consumption, calculate costs, and maintain accurate stock levels.
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Stock" icon="gauge-high">
+    Live inventory levels updated as operators consume materials
+  </Card>
+  <Card title="Cost Tracking" icon="dollar-sign">
+    Snapshot unit costs at consumption time for accurate job costing
+  </Card>
+  <Card title="Movement History" icon="clock-rotate-left">
+    Complete audit trail of all stock adjustments and consumptions
+  </Card>
+  <Card title="Category Organization" icon="tags">
+    Group materials by type for easier searching and reporting
+  </Card>
+</CardGroup>
+
+## Key Capabilities
+
+### Inventory Management
+
+- **Material Database**: Centralized catalog of all stocked items
+- **Category Grouping**: Organize by material type (Metales, Plásticos, Químicos, etc.)
+- **Unit Flexibility**: Support for any unit (kg, u, m, L, etc.)
+- **Real-Time Stock**: Live updates as materials are consumed
+- **Low Stock Warnings**: Visual alerts when inventory is depleted
+
+### Cost Control
+
+- **Unit Cost Tracking**: Store current cost per unit
+- **Cost Snapshots**: Capture price at time of consumption
+- **Stock Valuation**: Calculate total inventory value
+- **Price History**: Track cost changes over time
+
+### Movement Tracking
+
+- **Adjustment Logging**: Record all manual stock changes
+- **Consumption Records**: Link material usage to work orders
+- **Traceability**: Full audit trail with timestamps and users
+- **Movement Types**: AJUSTE, CONSUMO, DEVOLUCION, etc.
+
+## Movement Types
+
+All inventory changes are recorded as movements:
+
+### AJUSTE (Adjustment)
+
+**Manual stock correction**
+
+- Used for physical inventory counts
+- Can increase or decrease stock
+- Recorded via "Ajustar" button in materials table
+- Common reasons:
+  - Receiving new shipment
+  - Correcting count errors
+  - Returning unused materials
+  - Writing off damaged stock
+
+**Example:**
+```json
+{
+  "type": "AJUSTE",
+  "quantity": 50,
+  "unitCost": 125.50,
+  "note": "Recepción lote 2026-03-001"
+}
+```
+
+### CONSUMO (Consumption)
+
+**Production usage**
+
+- Automatically created when operator logs consumption
+- Always decreases stock
+- Linked to specific work order
+- Includes cost snapshot for job costing
+
+**Example:**
+```json
+{
+  "type": "CONSUMO",
+  "quantity": -5.5,
+  "unitCost": 125.50,
+  "workOrderId": "wo-uuid",
+  "note": "Corte piezas lote A"
+}
+```
+
+### Other Types
+
+- **DEVOLUCION**: Material returned from work order
+- **TRANSFERENCIA**: Moved between locations
+- **AJUSTE_COSTO**: Cost correction without quantity change
+- **DESCARTE**: Scrapped or discarded material
+
+## User Workflows
+
+<Steps>
+  <Step title="Create New Material">
+    1. Click **+ Nuevo Material** in page header
+    2. Fill in identification:
+       - **Nombre**: Material description (e.g., "Acero Inoxidable 304")
+       - **Categoría**: Optional grouping (e.g., "Metales")
+    3. Set parameters:
+       - **Unidad**: Unit of measure (kg, u, m, L, etc.)
+       - **Costo Inicial**: Current unit cost
+       - **Stock Físico**: Initial quantity on hand
+    4. Click **Crear Material**
+    5. Material appears in catalog with green or red stock indicator
+  </Step>
+  
+  <Step title="Adjust Stock Levels">
+    1. Find material in table (use search or category filter)
+    2. In "Ajuste y Acciones" column:
+       - Enter adjustment quantity in number field
+       - Positive number = increase stock
+       - Negative number = decrease stock
+    3. Optionally update unit cost if price changed
+    4. Click **Ajustar** button
+    5. System creates AJUSTE movement
+    6. Stock updates immediately
+    7. New stock level shows in "Stock Dispon." column
+  </Step>
+  
+  <Step title="Record Consumption (Operator)">
+    1. Operator opens assigned work order in terminal
+    2. Clicks **📦 Insumos y Notas** to expand section
+    3. In "Registrar Consumo" form:
+       - Select material from dropdown (shows current stock)
+       - Enter quantity used
+       - Add optional note (e.g., batch number)
+    4. Click **+ Registrar Consumo Fisico**
+    5. System:
+       - Reduces material stock by quantity
+       - Creates CONSUMO movement linked to WO
+       - Captures current `unitCost` as snapshot
+       - Updates work order cost tracking
+    6. Consumption appears in operator's history list
+  </Step>
+  
+  <Step title="Search and Filter Materials">
+    1. Use search bar: "🔍 Buscar material o categoría..."
+    2. Type any part of material name or category
+    3. Or select from "Todas las Categorías" dropdown
+    4. Click column headers to sort:
+       - Insumo / Material (alphabetical)
+       - Categoría (alphabetical)
+       - Stock Dispon. (numerical)
+       - Costo Unit. (numerical)
+    5. Results filter in real-time
+    6. Badge shows "{N} items activos"
+  </Step>
+  
+  <Step title="Delete Unused Material">
+    1. Verify material has no movement history
+    2. Click **Eliminar** button in table row
+    3. Confirm deletion in warning dialog
+    4. If material has movements:
+       - System blocks deletion
+       - Error message displayed
+       - Set stock to 0 instead to "retire" material
+  </Step>
+</Steps>
+
+## UI Elements and Forms
+
+### Material Catalog Table
+
+**Columns:**
+
+| Column | Description | Features |
+|--------|-------------|----------|
+| Insumo / Material | Material name | Sortable, searchable |
+| Categoría | Optional grouping badge | Sortable, filterable |
+| Stock Dispon. | Current quantity + unit | Color-coded (red if ≤0) |
+| Costo Unit. | Current unit price | Formatted as currency |
+| Ajuste y Acciones | Quick adjustment + delete | Inline editing |
+
+**Stock Level Colors:**
+- **Green (success)**: Stock > 0, material available
+- **Red (destructive)**: Stock ≤ 0, out of stock warning
+
+### Create Material Form
+
+#### Identificación (Identification)
+
+| Field | Type | Required | Validation | Max Length |
+|-------|------|----------|------------|------------|
+| `name` | Text | Yes | Non-empty | 120 chars |
+| `category` | Text | No | - | 80 chars |
+
+#### Parámetros (Parameters)
+
+| Field | Type | Required | Validation | Notes |
+|-------|------|----------|------------|-------|
+| `unit` | Text | Yes | Non-empty | 30 chars (e.g., "kg", "u", "m") |
+| `unitCost` | Decimal | Yes | Min: 0, step: 0.01 | Current price |
+| `stock` | Decimal | No | Min: 0, step: 0.01 | Initial inventory |
+
+**Backend Validation:**
+
+```typescript
+// CreateMaterialDto
+@IsString()
+@MaxLength(120)
+name!: string;
+
+@IsOptional()
+@IsString()
+@MaxLength(80)
+category?: string;
+
+@IsString()
+@MaxLength(30)
+unit!: string;
+
+@IsNumber()
+@Min(0)
+unitCost!: number;
+
+@IsNumber()
+@Min(0)
+stock!: number;
+```
+
+### Stock Adjustment Interface
+
+Inline adjustment in table row:
+
+```
+[Number Input: Quantity] [Adjust Button] [Delete Button]
+     ↓                      ↓
+   +50                   Click to apply
+```
+
+**Adjustment Logic:**
+- Positive quantity: Adds to stock
+- Negative quantity: Reduces stock
+- Zero: No change (button disabled)
+- Updates `unitCost` to value in form
+- Creates AJUSTE movement record
+
+### Operator Consumption Form
+
+In operator terminal (`OperatorPage.tsx:278-330`):
+
+```
+┌────────────────────────────────┐
+│ 📦 Registrar Consumo           │
+├────────────────────────────────┤
+│ Material: [Dropdown]            │
+│ Cantidad: [Number]              │
+│ Nota:     [Text]                 │
+│ [+ Registrar Consumo Fisico]    │
+└────────────────────────────────┘
+```
+
+**Dropdown displays:**
+```
+Acero Inoxidable 304 (Stock: 125.50 kg)
+Aluminio 6061 (Stock: 0 kg)  ← Shows even if out of stock
+Resina Epoxi (Stock: 45.2 L)
+```
+
+## Cost Snapshot Mechanism
+
+When material is consumed, the system captures a **cost snapshot**:
+
+### Why Snapshots?
+
+Material prices fluctuate over time. To calculate accurate job costs, we need the price **at the time of use**, not the current price.
+
+**Example:**
+
+```
+January: Steel costs $100/kg
+  - Work Order A consumes 10kg
+  - Cost recorded: $100/kg × 10kg = $1,000
+
+February: Steel price increases to $120/kg
+  - Work Order B consumes 10kg
+  - Cost recorded: $120/kg × 10kg = $1,200
+
+March: View job costs
+  - Order A shows $1,000 (historical price)
+  - Order B shows $1,200 (historical price)
+  - Current price $120/kg doesn't affect past orders
+```
+
+### Implementation
+
+```typescript
+// MaterialConsumption entity
+interface MaterialConsumption {
+  id: string;
+  workOrderId: string;
+  materialId: string;
+  quantity: number;
+  unitCostSnapshot: number;  // Price at time of consumption
+  note?: string;
+  consumedAt: string;
+}
+
+// Total cost calculation
+const totalCost = consumptions.reduce((sum, c) => 
+  sum + (c.quantity * c.unitCostSnapshot), 0
+);
+```
+
+### Updating Current Prices
+
+To update the current material price:
+
+1. Use stock adjustment with new `unitCost`
+2. Only affects future consumptions
+3. Past consumptions retain their snapshot price
+4. Enables price trend analysis
+
+## Movement History & Traceability
+
+Every stock change creates a movement record:
+
+### Movement Record Structure
+
+```typescript
+interface MaterialMovement {
+  id: string;
+  materialId: string;
+  type: string;              // AJUSTE, CONSUMO, etc.
+  quantity: number;          // Positive or negative
+  unitCost: number;          // Price at movement time
+  note?: string;             // Reason or details
+  workOrderId?: string;      // Link if consumption
+  createdAt: string;         // Timestamp
+  user?: {                   // Who performed action
+    id: string;
+    fullName: string;
+  };
+}
+```
+
+### Querying Movement History
+
+```bash
+# Get all movements for a material
+GET /api/materials/{id}/movements
+
+# Response
+[
+  {
+    "id": "mov-001",
+    "type": "AJUSTE",
+    "quantity": 100,
+    "unitCost": 125.50,
+    "note": "Recepción inicial",
+    "createdAt": "2026-03-01T08:00:00Z"
+  },
+  {
+    "id": "mov-002",
+    "type": "CONSUMO",
+    "quantity": -5.5,
+    "unitCost": 125.50,
+    "workOrderId": "wo-123",
+    "note": "OT-2026-045 - Corte piezas",
+    "createdAt": "2026-03-05T14:30:00Z"
+  }
+]
+```
+
+### Audit Trail Benefits
+
+- **Reconciliation**: Match physical counts to system records
+- **Shrinkage Detection**: Identify unexplained losses
+- **Work Order Costing**: Link materials to specific jobs
+- **Supplier Analysis**: Track material quality by batch
+- **Regulatory Compliance**: Prove material usage for certifications
+
+## Real-Time Stock Levels
+
+Stock is calculated dynamically:
+
+```
+Current Stock = Initial Stock + Sum of All Movements
+
+Example:
+  Initial: 0
+  + Adjustment: +100kg
+  - Consumption: -5.5kg
+  - Consumption: -3.2kg
+  + Adjustment: +50kg
+  = Current: 141.3kg
+```
+
+### Stock Updates
+
+Stock changes propagate instantly:
+
+1. **Operator logs consumption**
+   - Mutation creates movement
+   - Stock recalculated
+   - Cache invalidated
+   - UI updates via React Query
+
+2. **Supervisor views materials**
+   - Sees updated stock level
+   - Low stock warning if ≤0
+   - Can adjust if needed
+
+3. **Reports generate**
+   - Use current stock snapshot
+   - Historical movements preserved
+   - Accurate cost calculations
+
+## Related Features
+
+### Work Orders
+
+- Operators consume materials from work orders
+- Consumptions linked via `workOrderId`
+- Total material cost calculated from snapshots
+- Cost deviation alerts based on consumption
+
+### Operator Terminal
+
+- Real-time material dropdown with stock levels
+- Quick consumption logging
+- History view of materials used
+- Optional notes for batch tracking
+
+### Reports & Analytics
+
+- Material consumption by work order
+- Material consumption by client
+- Inventory valuation reports
+- Price trend analysis
+- Usage forecasting
+
+## Role-Based Access
+
+| Feature | DUENO | ADMIN | SUPERVISOR | OPERARIO |
+|---------|-------|-------|------------|----------|
+| View Materials | ✅ | ✅ | ✅ | ✅ |
+| Create Materials | ✅ | ✅ | ✅ | ❌ |
+| Adjust Stock | ✅ | ✅ | ✅ | ❌ |
+| Update Costs | ✅ | ✅ | ✅ | ❌ |
+| Delete Materials | ✅ | ✅ | ⚠️ No history only | ❌ |
+| Log Consumption | ✅ | ✅ | ✅ | ✅ |
+| View Movements | ✅ | ✅ | ✅ | ⚠️ Own WO only |
+| Export Data | ✅ | ✅ | ✅ | ❌ |
+
+<Note>
+  Operators can log consumptions on their assigned work orders but cannot adjust global inventory or modify material definitions.
+</Note>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Consistent Units">
+    Standardize unit abbreviations across materials:
+    
+    **Common units:**
+    - Weight: `kg`, `g`, `t` (metric)
+    - Length: `m`, `cm`, `mm`
+    - Volume: `L`, `mL`
+    - Count: `u` (unidades), `pz` (piezas)
+    - Area: `m2`, `ft2`
+    
+    **Avoid:**
+    - Mixing unit systems (kg and lb)
+    - Inconsistent abbreviations (kilo vs kg)
+    - Ambiguous units ("ea" vs "u")
+  </Accordion>
+  
+  <Accordion title="Category Structure">
+    Establish a category hierarchy:
+    
+    **Examples:**
+    - Metales Ferrosos
+    - Metales No Ferrosos
+    - Plásticos
+    - Químicos
+    - Consumibles
+    - Embalaje
+    
+    **Benefits:**
+    - Faster searching
+    - Better reporting
+    - Easier procurement
+    - Inventory organization
+  </Accordion>
+  
+  <Accordion title="Timely Adjustments">
+    Record stock changes immediately:
+    
+    **When receiving materials:**
+    - Adjust stock same day as delivery
+    - Include supplier invoice number in notes
+    - Update unit cost if price changed
+    
+    **During physical counts:**
+    - Document count date in notes
+    - Investigate large discrepancies
+    - Adjust in small batches for traceability
+    
+    **For damaged stock:**
+    - Use negative adjustment
+    - Note reason ("Daño en transporte")
+    - Link to incident report if applicable
+  </Accordion>
+  
+  <Accordion title="Consumption Notes">
+    Use the optional note field effectively:
+    
+    **Record:**
+    - Batch or lot numbers
+    - Quality observations
+    - Unusual usage patterns
+    - Substitutions or alternatives used
+    
+    **Example notes:**
+    - "Lote 2026-03-A, cert. incluida"
+    - "Sustituido por grado 316 (aprobado)"
+    - "Doble cantidad por retrabajo"
+    - "Última unidad en stock"
+  </Accordion>
+</AccordionGroup>
+
+## Technical Implementation
+
+**Source Code:**
+
+- Frontend: `apps/frontend/src/features/materials/MaterialsPage.tsx`
+- Operator consumption: `apps/frontend/src/features/operator/OperatorPage.tsx` (lines 273-351)
+- Backend DTO: `apps/backend/src/modules/materials/dto/create-material.dto.ts`
+- Adjustment DTO: `apps/backend/src/modules/materials/dto/adjust-stock.dto.ts`
+- Database: Prisma schema with Material and MaterialMovement models
+
+**API Endpoints:**
+
+```bash
+# Materials
+GET    /api/materials                    # List all materials
+POST   /api/materials                    # Create new material
+PATCH  /api/materials/{id}               # Update material
+DELETE /api/materials/{id}               # Delete (restricted)
+
+# Stock Adjustments
+POST   /api/materials/{id}/adjust-stock  # Manual adjustment
+
+# Movements (via Work Orders)
+POST   /api/work-orders/{id}/consumptions  # Log consumption
+GET    /api/work-orders/{id}/consumptions  # View WO consumptions
+
+# History
+GET    /api/materials/{id}/movements     # Full movement history
+```
+
+**Database Schema:**
+
+```prisma
+model Material {
+  id       String  @id @default(uuid())
+  name     String  @db.VarChar(120)
+  category String? @db.VarChar(80)
+  unit     String  @db.VarChar(30)
+  unitCost Decimal @db.Decimal(10, 2)
+  stock    Decimal @db.Decimal(10, 3)
+  
+  movements     MaterialMovement[]
+  consumptions  MaterialConsumption[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([category])
+  @@index([name])
+}
+
+model MaterialMovement {
+  id         String   @id @default(uuid())
+  materialId String
+  type       String   @db.VarChar(50)  // AJUSTE, CONSUMO, etc.
+  quantity   Decimal  @db.Decimal(10, 3)
+  unitCost   Decimal  @db.Decimal(10, 2)
+  note       String?  @db.VarChar(500)
+  createdAt  DateTime @default(now())
+  
+  material Material @relation(fields: [materialId], references: [id])
+  
+  @@index([materialId])
+  @@index([type])
+}
+```
+
+<Warning>
+  Materials with consumption history cannot be deleted. This preserves work order cost accuracy. Set stock to 0 and create a new material if needed.
+</Warning>

@@ -1,0 +1,567 @@
+---
+title: Database Setup
+description: PostgreSQL configuration, Prisma migrations, and database management for DRAIT Mini-MES
+---
+
+## Overview
+
+DRAIT Mini-MES uses PostgreSQL 16 with Prisma ORM for database management. The system includes a comprehensive schema for manufacturing execution with support for multi-tenancy, work orders, resources, materials, and audit logging.
+
+## Database Architecture
+
+### Technology Stack
+
+- **Database**: PostgreSQL 16 Alpine
+- **ORM**: Prisma 5.22
+- **Client**: @prisma/client
+- **Migration Tool**: Prisma Migrate
+
+### Schema Location
+
+The Prisma schema is located at `apps/backend/prisma/schema.prisma:1`.
+
+## Initial Database Setup
+
+<Steps>
+  <Step title="Ensure database container is running">
+    Verify the PostgreSQL container is healthy:
+    
+    ```bash
+    docker compose ps drait-db
+    ```
+    
+    Expected output should show "healthy" status.
+  </Step>
+  
+  <Step title="Generate Prisma client">
+    Generate the Prisma client TypeScript types:
+    
+    ```bash
+    docker compose exec drait-backend npm run prisma:generate
+    ```
+    
+    This runs `prisma generate` and creates typed database client code.
+  </Step>
+  
+  <Step title="Run enum normalization">
+    DRAIT uses Spanish enum values. Normalize existing enums if migrating:
+    
+    ```bash
+    docker compose exec drait-backend npm run prisma:normalize-enums
+    ```
+    
+    This executes `apps/backend/prisma/enum-rename.sql` to rename English enum values to Spanish.
+  </Step>
+  
+  <Step title="Apply database migrations">
+    Push the Prisma schema to the database:
+    
+    ```bash
+    docker compose exec drait-backend npm run prisma:migrate
+    ```
+    
+    This runs:
+    1. `prisma:normalize-enums` (enum fixes)
+    2. `prisma db push` (schema sync)
+  </Step>
+  
+  <Step title="Seed demo data (optional)">
+    Populate the database with sample manufacturing data:
+    
+    ```bash
+    docker compose exec drait-backend npm run prisma:seed
+    ```
+    
+    See [Demo Data Seeding](#demo-data-seeding) below for details.
+  </Step>
+</Steps>
+
+## Database Schema
+
+### Core Entities
+
+The schema includes 13 main models:
+
+| Model | Description | Key Fields |
+|-------|-------------|------------|
+| **Company** | Multi-tenant organization | `id`, `name`, `taxId`, `settings` |
+| **User** | System users with roles | `email`, `role`, `passwordHash` |
+| **Client** | Customers | `name`, `contact`, `email` |
+| **Quotation** | Sales quotes | `code`, `status`, `estimatedCost` |
+| **WorkOrder** | Manufacturing orders | `code`, `status`, `priority`, `commitmentDate` |
+| **Resource** | People and machines | `type`, `status`, `sector` |
+| **Material** | Inventory items | `stock`, `unitCost`, `category` |
+| **OperationLog** | Work order events | `eventType`, `eventAt`, `note` |
+| **MaterialConsumption** | Material usage tracking | `quantity`, `unitCostSnapshot` |
+| **AuditLog** | System audit trail | `entityType`, `action`, `before`, `after` |
+
+### Enums
+
+All enums use Spanish values (see `apps/backend/prisma/schema.prisma:12`):
+
+**UserRole**:
+- `DUENO` (Owner)
+- `SUPERVISOR`
+- `OPERARIO` (Operator)
+- `ADMIN`
+
+**WorkOrderStatus**:
+- `PENDIENTE` (Pending)
+- `PLANIFICADA` (Planned)
+- `EN_PROCESO` (In Progress)
+- `PAUSADA` (Paused)
+- `FINALIZADA` (Finished)
+- `ENTREGADA` (Delivered)
+- `CANCELADA` (Canceled)
+- `RETRABAJO` (Rework)
+
+**ResourceType**:
+- `HUMANO` (Human)
+- `MAQUINA` (Machine)
+
+**ResourceStatus**:
+- `DISPONIBLE` (Available)
+- `OCUPADO` (Busy)
+- `MANTENIMIENTO` (Maintenance)
+- `FUERA_DE_LINEA` (Offline)
+
+<Note>
+  The enum normalization script (`apps/backend/prisma/enum-rename.sql`) automatically converts English enum values from previous migrations to Spanish.
+</Note>
+
+## Prisma Scripts
+
+All Prisma commands are defined in `apps/backend/package.json:13`:
+
+### prisma:generate
+
+```bash
+docker compose exec drait-backend npm run prisma:generate
+```
+
+Generates Prisma Client with TypeScript types based on the schema.
+
+**When to run**:
+- After modifying `schema.prisma`
+- After pulling schema changes
+- During Docker image build (automatic)
+
+### prisma:normalize-enums
+
+```bash
+docker compose exec drait-backend npm run prisma:normalize-enums
+```
+
+Executes SQL script to rename enum values from English to Spanish.
+
+**SQL file**: `apps/backend/prisma/enum-rename.sql:1`
+
+**Transformations**:
+- `OWNER` → `DUENO`
+- `OPERATOR` → `OPERARIO`
+- `DRAFT` → `BORRADOR`
+- `PENDING` → `PENDIENTE`
+- `IN_PROGRESS` → `EN_PROCESO`
+- And more...
+
+### prisma:migrate
+
+```bash
+docker compose exec drait-backend npm run prisma:migrate
+```
+
+**Full command**: `npm run prisma:normalize-enums && prisma db push`
+
+This is the main migration command that:
+1. Normalizes enum values to Spanish
+2. Syncs the Prisma schema to the database
+3. Creates or updates tables, columns, indexes
+
+<Note>
+  This uses `prisma db push` instead of `prisma migrate dev` for faster prototyping. For production, consider using versioned migrations with `prisma migrate deploy`.
+</Note>
+
+### prisma:seed
+
+```bash
+docker compose exec drait-backend npm run prisma:seed
+```
+
+**Script**: `apps/backend/prisma/seed.ts:1`
+
+Populates the database with comprehensive demo data.
+
+## Demo Data Seeding
+
+The seed script (`apps/backend/prisma/seed.ts`) creates a full 6-month manufacturing scenario.
+
+### What Gets Seeded
+
+<CodeGroup>
+```typescript Company
+// 1 company: Taller Metalúrgico DRAIT
+name: 'Taller Metalúrgico DRAIT'
+legalName: 'DRAIT Metalmecánica SRL'
+taxId: '30-71234567-9'
+```
+
+```typescript Users
+// 7 users with different roles
+owner@drait.local       (DUENO)
+supervisor@drait.local  (SUPERVISOR)
+lucas@drait.local       (OPERARIO)
+diego@drait.local       (OPERARIO)
+nicolas@drait.local     (OPERARIO)
+ezequiel@drait.local    (OPERARIO)
+matias@drait.local      (OPERARIO)
+
+// All passwords: ChangeMe123!
+```
+
+```typescript Clients
+// 6 customers
+Metalúrgica Norte SA
+AgroFierro SRL
+VialSur Equipamientos
+Energía Montajes SA
+TecnoMoldes
+Constructora del Sur SA
+```
+
+```typescript Resources
+// 10 resources (5 human + 5 machines)
+HUMANO: Lucas Tornero, Diego Fresador, Nicolas Soldador...
+MAQUINA: Torno Nardini 300, Fresa Bridgeport, Soldadora MIG...
+```
+</CodeGroup>
+
+<CodeGroup>
+```typescript Materials
+// 15 materials with stock
+Acero SAE 1045 (450 kg)
+Chapa 3/16" (380 kg)
+Electrodo 6013 (140 kg)
+Alambre MIG (88 kg)
+Bulón M12x40 (1200 u)
+// ...and more
+```
+
+```typescript Quotations
+// 15 quotations (Q-2025-031 to Q-2026-020)
+Status: APROBADO, ENVIADO, BORRADOR, RECHAZADO
+Estimated costs: $195,000 to $1,250,000
+```
+
+```typescript Work Orders
+// 30 work orders spanning 6 months
+OT-2025-001 to OT-2026-018
+Statuses: ENTREGADA, FINALIZADA, EN_PROCESO, PAUSADA, PENDIENTE
+Historical data from Sept 2025 to current (Mar 2026)
+```
+
+```typescript Operation Logs
+// ~200+ operation events
+OT_CREADA, ASIGNADO, INICIO, PAUSA, 
+REANUDACION, FINALIZACION, CAMBIO_ESTADO
+```
+</CodeGroup>
+
+### Seed Data Highlights
+
+- **Timeline**: September 2025 - March 2026 (relative to 2026-03-11)
+- **Completed Work Orders**: 12 delivered orders
+- **Active Work Orders**: 6 in progress or paused
+- **Pending Work Orders**: 12 planned or pending
+- **Material Consumptions**: 43 consumption records
+- **Total Users**: 7 (1 owner, 1 supervisor, 5 operators)
+
+<Warning>
+  The seed data is designed for **development and testing only**. Do not run `prisma:seed` in production unless you want demo data.
+</Warning>
+
+### Seed Credentials
+
+All seeded users share the password: `ChangeMe123!`
+
+```bash
+# Login as owner
+Email: owner@drait.local
+Password: ChangeMe123!
+
+# Login as supervisor
+Email: supervisor@drait.local
+Password: ChangeMe123!
+
+# Login as operator
+Email: lucas@drait.local
+Password: ChangeMe123!
+```
+
+## Database Operations
+
+### Connecting to PostgreSQL
+
+<CodeGroup>
+```bash Using Docker Exec
+# Connect with psql
+docker compose exec drait-db psql -U drait -d drait_mes
+
+# Run a query
+docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT COUNT(*) FROM \"WorkOrder\";"
+```
+
+```bash Using psql Directly
+# Connect from host machine (requires psql installed)
+psql -h localhost -p 5432 -U drait -d drait_mes
+
+# With password prompt
+PGPASSWORD=drait123 psql -h localhost -p 5432 -U drait -d drait_mes
+```
+
+```bash Using Database Client
+# Connection string for GUI clients (DBeaver, pgAdmin, etc.)
+Host: localhost
+Port: 5432
+Database: drait_mes
+User: drait
+Password: drait123
+```
+</CodeGroup>
+
+### Inspecting the Database
+
+<CodeGroup>
+```sql List Tables
+-- View all tables
+\dt
+
+-- Or via SQL
+SELECT tablename FROM pg_tables 
+WHERE schemaname = 'public' 
+ORDER BY tablename;
+```
+
+```sql Table Schema
+-- Describe a table
+\d "WorkOrder"
+
+-- Or via SQL
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'WorkOrder'
+ORDER BY ordinal_position;
+```
+
+```sql Record Counts
+-- Count records in all tables
+SELECT 
+  schemaname,
+  tablename,
+  n_live_tup AS row_count
+FROM pg_stat_user_tables
+ORDER BY n_live_tup DESC;
+```
+
+```sql Check Enums
+-- List all enum types
+SELECT t.typname, e.enumlabel
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+WHERE t.typname = 'WorkOrderStatus'
+ORDER BY e.enumsortorder;
+```
+</CodeGroup>
+
+### Resetting the Database
+
+<Warning>
+  These commands will **permanently delete all data**. Use with caution!
+</Warning>
+
+<Steps>
+  <Step title="Stop the backend">
+    ```bash
+    docker compose stop drait-backend
+    ```
+  </Step>
+  
+  <Step title="Reset database schema">
+    ```bash
+    docker compose exec drait-db psql -U drait -d drait_mes -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+    ```
+  </Step>
+  
+  <Step title="Re-run migrations">
+    ```bash
+    docker compose exec drait-backend npm run prisma:migrate
+    ```
+  </Step>
+  
+  <Step title="Re-seed data (optional)">
+    ```bash
+    docker compose exec drait-backend npm run prisma:seed
+    ```
+  </Step>
+  
+  <Step title="Restart backend">
+    ```bash
+    docker compose start drait-backend
+    ```
+  </Step>
+</Steps>
+
+**Alternative: Full container reset**
+
+```bash
+# Stop and remove containers with volumes
+docker compose down -v
+
+# Restart everything
+docker compose up -d
+
+# Run migrations and seed
+docker compose exec drait-backend npm run prisma:migrate
+docker compose exec drait-backend npm run prisma:seed
+```
+
+## Database Backup
+
+See [Backup & Restore](/deployment/backup-restore) for comprehensive backup strategies.
+
+### Quick Backup
+
+```bash
+# Backup to file
+docker compose exec drait-db pg_dump -U drait drait_mes > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Backup with compression
+docker compose exec drait-db pg_dump -U drait drait_mes | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+```
+
+### Quick Restore
+
+```bash
+# Restore from file
+docker compose exec -T drait-db psql -U drait -d drait_mes < backup_20260313_143000.sql
+
+# Restore from compressed file
+gunzip -c backup_20260313_143000.sql.gz | docker compose exec -T drait-db psql -U drait -d drait_mes
+```
+
+## Performance Optimization
+
+### Indexes
+
+The Prisma schema includes strategic indexes (see `apps/backend/prisma/schema.prisma`):
+
+```prisma
+model WorkOrder {
+  @@index([companyId, status])
+  @@index([companyId, commitmentDate])
+}
+
+model User {
+  @@index([companyId, role])
+}
+
+model OperationLog {
+  @@index([companyId, workOrderId, eventAt])
+}
+```
+
+### Query Optimization
+
+<CodeGroup>
+```sql Analyze Query Performance
+-- Enable query timing
+\timing on
+
+-- Explain query plan
+EXPLAIN ANALYZE SELECT * FROM "WorkOrder" WHERE "status" = 'EN_PROCESO';
+```
+
+```sql Check Index Usage
+-- View index statistics
+SELECT 
+  schemaname,
+  tablename,
+  indexname,
+  idx_scan as index_scans,
+  idx_tup_read as tuples_read,
+  idx_tup_fetch as tuples_fetched
+FROM pg_stat_user_indexes
+ORDER BY idx_scan DESC;
+```
+
+```sql Database Size
+-- Check database size
+SELECT pg_size_pretty(pg_database_size('drait_mes'));
+
+-- Check table sizes
+SELECT 
+  tablename,
+  pg_size_pretty(pg_total_relation_size('"' || tablename || '"')) as size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size('"' || tablename || '"') DESC;
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### Connection Issues
+
+<Accordion title="Error: connection refused">
+  **Cause**: Database container not running or not healthy.
+  
+  **Solution**:
+  ```bash
+  # Check container status
+  docker compose ps drait-db
+  
+  # View logs
+  docker compose logs drait-db
+  
+  # Restart database
+  docker compose restart drait-db
+  ```
+</Accordion>
+
+<Accordion title="Error: password authentication failed">
+  **Cause**: Mismatch between `DATABASE_URL` and database credentials.
+  
+  **Solution**:
+  1. Verify `.env` file has matching credentials:
+     - `POSTGRES_USER` matches username in `DATABASE_URL`
+     - `POSTGRES_PASSWORD` matches password in `DATABASE_URL`
+     - `POSTGRES_DB` matches database name in `DATABASE_URL`
+  
+  2. Recreate containers:
+     ```bash
+     docker compose down
+     docker compose up -d
+     ```
+</Accordion>
+
+<Accordion title="Error: database does not exist">
+  **Cause**: Database not created or wrong database name.
+  
+  **Solution**:
+  ```bash
+  # Create database manually
+  docker compose exec drait-db psql -U drait -c "CREATE DATABASE drait_mes;"
+  
+  # Or recreate container
+  docker compose down
+  docker compose up -d drait-db
+  ```
+</Accordion>
+
+For more issues, see [Troubleshooting](/deployment/troubleshooting#database-errors).
+
+## Next Steps
+
+- Set up [Backup & Restore](/deployment/backup-restore) procedures
+- Configure [Monitoring](/deployment/monitoring) for database health
+- Review [Environment Variables](/deployment/environment-variables) for database configuration
+- Check [Troubleshooting](/deployment/troubleshooting) for common database issues

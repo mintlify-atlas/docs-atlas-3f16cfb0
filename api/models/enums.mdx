@@ -1,0 +1,567 @@
+---
+title: Enumeration Types
+description: All enum types used in DRAIT Mini-MES data models
+---
+
+## Overview
+
+DRAIT Mini-MES uses strongly-typed enumerations for status fields, types, and categorization. All enums are defined in the Prisma schema and enforced at the database and API levels.
+
+---
+
+## UserRole
+
+Defines user roles and permissions within the system.
+
+```typescript
+enum UserRole {
+  DUENO      // Owner
+  SUPERVISOR // Supervisor
+  OPERARIO   // Operator
+  ADMIN      // Administrator
+}
+```
+
+<ResponseField name="DUENO" type="role">
+  **Owner** - Propietario con acceso total
+  
+  Full system access including:
+  - All operational features
+  - User management
+  - Company settings
+  - Financial data
+</ResponseField>
+
+<ResponseField name="SUPERVISOR" type="role">
+  **Supervisor** - Supervisa y gestiona operación
+  
+  Operational management:
+  - Create/manage clients and quotations
+  - Create/manage work orders
+  - Assign resources
+  - View reports
+</ResponseField>
+
+<ResponseField name="OPERARIO" type="role">
+  **Operator** - Operario de planta
+  
+  Plant floor operations:
+  - View assigned work orders
+  - Update work order status
+  - Log events and consumption
+  - Limited reporting access
+</ResponseField>
+
+<ResponseField name="ADMIN" type="role">
+  **Administrator** - Administrador técnico
+  
+  Technical administration:
+  - User management
+  - System configuration
+  - Full operational access
+  - Audit log access
+</ResponseField>
+
+**API Usage:**
+```json
+{
+  "email": "user@company.com",
+  "role": "SUPERVISOR"
+}
+```
+
+---
+
+## QuotationStatus
+
+Commercial status of quotations throughout the sales pipeline.
+
+```typescript
+enum QuotationStatus {
+  BORRADOR   // Draft
+  ENVIADO    // Sent
+  APROBADO   // Approved
+  RECHAZADO  // Rejected
+}
+```
+
+<ResponseField name="BORRADOR" type="status">
+  **Draft** - Quotation is being prepared
+  
+  - Initial state for new quotations
+  - Can be edited freely
+  - Not visible to client
+</ResponseField>
+
+<ResponseField name="ENVIADO" type="status">
+  **Sent** - Quotation sent to client
+  
+  - Awaiting client decision
+  - May still be edited if needed
+  - Client has received proposal
+</ResponseField>
+
+<ResponseField name="APROBADO" type="status">
+  **Approved** - Client accepted quotation
+  
+  - Client approved the proposal
+  - Ready to convert to work order
+  - Sets `approvedAt` timestamp
+</ResponseField>
+
+<ResponseField name="RECHAZADO" type="status">
+  **Rejected** - Client declined quotation
+  
+  - Client rejected the proposal
+  - Closed opportunity
+  - Archived for future reference
+</ResponseField>
+
+**Status Flow:**
+```
+BORRADOR → ENVIADO → APROBADO/RECHAZADO
+```
+
+**API Usage:**
+```json
+{
+  "status": "APROBADO",
+  "approvedAt": "2026-03-10T14:00:00.000Z"
+}
+```
+
+---
+
+## WorkOrderStatus
+
+Production status tracking for work orders through the manufacturing lifecycle.
+
+```typescript
+enum WorkOrderStatus {
+  PENDIENTE    // Pending
+  PLANIFICADA  // Planned
+  EN_PROCESO   // In Progress
+  PAUSADA      // Paused
+  FINALIZADA   // Finished
+  ENTREGADA    // Delivered
+  CANCELADA    // Cancelled
+  RETRABAJO    // Rework
+}
+```
+
+<ResponseField name="PENDIENTE" type="status">
+  **Pending** - Work order created, awaiting planning
+  
+  - Initial state
+  - Not yet scheduled
+  - No resources assigned
+</ResponseField>
+
+<ResponseField name="PLANIFICADA" type="status">
+  **Planned** - Scheduled with resources
+  
+  - Resources assigned
+  - Planned date set
+  - Ready to start
+</ResponseField>
+
+<ResponseField name="EN_PROCESO" type="status">
+  **In Progress** - Active production
+  
+  - Work actively underway
+  - Sets `startedAt` timestamp
+  - Resources working
+</ResponseField>
+
+<ResponseField name="PAUSADA" type="status">
+  **Paused** - Temporarily stopped
+  
+  - Work temporarily halted
+  - Reason documented in operation logs
+  - Can resume to EN_PROCESO
+</ResponseField>
+
+<ResponseField name="FINALIZADA" type="status">
+  **Finished** - Production complete
+  
+  - Work completed
+  - Sets `finishedAt` timestamp
+  - Ready for delivery/inspection
+</ResponseField>
+
+<ResponseField name="ENTREGADA" type="status">
+  **Delivered** - Delivered to client
+  
+  - Client received product
+  - Sets `deliveredAt` timestamp
+  - Order complete
+</ResponseField>
+
+<ResponseField name="CANCELADA" type="status">
+  **Cancelled** - Order cancelled
+  
+  - Order terminated
+  - Resources released
+  - Documented reason
+</ResponseField>
+
+<ResponseField name="RETRABAJO" type="status">
+  **Rework** - Quality issue requires rework
+  
+  - Non-conformance detected
+  - Requires correction
+  - Returns to production
+</ResponseField>
+
+**Status Flow:**
+```
+PENDIENTE → PLANIFICADA → EN_PROCESO ⇄ PAUSADA → FINALIZADA → ENTREGADA
+                                  ↓
+                              RETRABAJO → EN_PROCESO
+                                  ↓
+                              CANCELADA
+```
+
+**API Usage:**
+```json
+{
+  "status": "EN_PROCESO",
+  "startedAt": "2026-03-15T08:30:00.000Z"
+}
+```
+
+---
+
+## ResourceType
+
+Type of production resource.
+
+```typescript
+enum ResourceType {
+  HUMANO   // Human
+  MAQUINA  // Machine
+}
+```
+
+<ResponseField name="HUMANO" type="type">
+  **Human** - Person/operator
+  
+  - Plant operators
+  - Technicians
+  - Specialists
+  - Can be linked to User accounts
+</ResponseField>
+
+<ResponseField name="MAQUINA" type="type">
+  **Machine** - Equipment/machinery
+  
+  - CNC machines
+  - Welding stations
+  - Assembly lines
+  - Tools and equipment
+</ResponseField>
+
+**API Usage:**
+```json
+{
+  "type": "MAQUINA",
+  "name": "CNC Mill #1"
+}
+```
+
+---
+
+## ResourceStatus
+
+Operational status of resources.
+
+```typescript
+enum ResourceStatus {
+  DISPONIBLE     // Available
+  OCUPADO        // Busy
+  MANTENIMIENTO  // Maintenance
+  FUERA_DE_LINEA // Offline
+}
+```
+
+<ResponseField name="DISPONIBLE" type="status">
+  **Available** - Ready for work
+  
+  - Not assigned to any work order
+  - Operational condition
+  - Can be assigned
+</ResponseField>
+
+<ResponseField name="OCUPADO" type="status">
+  **Busy** - Currently working
+  
+  - Assigned to active work order
+  - In use
+  - Cannot be reassigned until free
+</ResponseField>
+
+<ResponseField name="MANTENIMIENTO" type="status">
+  **Maintenance** - Under maintenance
+  
+  - Scheduled maintenance
+  - Repair in progress
+  - Temporarily unavailable
+</ResponseField>
+
+<ResponseField name="FUERA_DE_LINEA" type="status">
+  **Offline** - Out of service
+  
+  - Not operational
+  - Broken down
+  - Awaiting repair or decommissioning
+</ResponseField>
+
+**API Usage:**
+```json
+{
+  "status": "MANTENIMIENTO",
+  "notes": "Scheduled maintenance - back online 2026-03-20"
+}
+```
+
+---
+
+## OperationEventType
+
+Operational traceability events.
+
+```typescript
+enum OperationEventType {
+  OT_CREADA          // Work Order Created
+  ASIGNADO           // Assigned
+  INICIO             // Start
+  PAUSA              // Pause
+  REANUDACION        // Resume
+  FINALIZACION       // Finish
+  CAMBIO_ESTADO      // Status Change
+  MATERIAL_CONSUMIDO // Material Consumed
+  NOTA               // Note
+}
+```
+
+<ResponseField name="OT_CREADA" type="event">
+  Work order created
+</ResponseField>
+
+<ResponseField name="ASIGNADO" type="event">
+  Resource/operator assigned
+</ResponseField>
+
+<ResponseField name="INICIO" type="event">
+  Work started
+</ResponseField>
+
+<ResponseField name="PAUSA" type="event">
+  Work paused (includes pauseReason)
+</ResponseField>
+
+<ResponseField name="REANUDACION" type="event">
+  Work resumed after pause
+</ResponseField>
+
+<ResponseField name="FINALIZACION" type="event">
+  Work finished
+</ResponseField>
+
+<ResponseField name="CAMBIO_ESTADO" type="event">
+  Status changed
+</ResponseField>
+
+<ResponseField name="MATERIAL_CONSUMIDO" type="event">
+  Material consumption recorded
+</ResponseField>
+
+<ResponseField name="NOTA" type="event">
+  Custom note/observation
+</ResponseField>
+
+**API Usage:**
+```json
+{
+  "eventType": "PAUSA",
+  "pauseReason": "Machine maintenance required",
+  "note": "Will resume after maintenance"
+}
+```
+
+---
+
+## MaterialMovementType
+
+Inventory movement types.
+
+```typescript
+enum MaterialMovementType {
+  ENTRADA  // Incoming
+  AJUSTE   // Adjustment
+  CONSUMO  // Consumption
+}
+```
+
+<ResponseField name="ENTRADA" type="movement">
+  **Incoming** - Stock increase
+  
+  - Purchase receipts
+  - Returns
+  - Transfers in
+</ResponseField>
+
+<ResponseField name="AJUSTE" type="movement">
+  **Adjustment** - Manual correction
+  
+  - Inventory count adjustments
+  - Corrections
+  - Write-offs
+</ResponseField>
+
+<ResponseField name="CONSUMO" type="movement">
+  **Consumption** - Stock decrease
+  
+  - Used in production
+  - Linked to work orders
+  - Automatic from consumption records
+</ResponseField>
+
+**API Usage:**
+```json
+{
+  "type": "ENTRADA",
+  "quantity": 100,
+  "note": "New shipment from supplier"
+}
+```
+
+---
+
+## AuditEntityType
+
+Auditable entity types.
+
+```typescript
+enum AuditEntityType {
+  COMPANY
+  USER
+  CLIENT
+  QUOTATION
+  WORK_ORDER
+  RESOURCE
+  MATERIAL
+  AUTH
+}
+```
+
+Each value corresponds to a primary entity type in the system.
+
+---
+
+## AuditActionType
+
+Auditable action types.
+
+```typescript
+enum AuditActionType {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  ASSIGN
+  DELIVERY_CLOSE
+  PASSWORD_CHANGE
+  ROLE_CHANGE
+  SETTINGS_CHANGE
+  LOGIN
+}
+```
+
+<ResponseField name="CREATE" type="action">
+  Entity created
+</ResponseField>
+
+<ResponseField name="UPDATE" type="action">
+  Entity modified
+</ResponseField>
+
+<ResponseField name="DELETE" type="action">
+  Entity deleted (soft delete)
+</ResponseField>
+
+<ResponseField name="STATUS_CHANGE" type="action">
+  Status field changed
+</ResponseField>
+
+<ResponseField name="ASSIGN" type="action">
+  Resource assigned to work order
+</ResponseField>
+
+<ResponseField name="DELIVERY_CLOSE" type="action">
+  Work order delivered
+</ResponseField>
+
+<ResponseField name="PASSWORD_CHANGE" type="action">
+  User password changed
+</ResponseField>
+
+<ResponseField name="ROLE_CHANGE" type="action">
+  User role modified
+</ResponseField>
+
+<ResponseField name="SETTINGS_CHANGE" type="action">
+  Company settings updated
+</ResponseField>
+
+<ResponseField name="LOGIN" type="action">
+  User authenticated
+</ResponseField>
+
+---
+
+## Using Enums in API
+
+### Request Validation
+
+Enums are validated on the server:
+```typescript
+@IsEnum(WorkOrderStatus)
+status!: WorkOrderStatus;
+```
+
+Invalid values return **400 Bad Request**:
+```json
+{
+  "statusCode": 400,
+  "message": ["status must be a valid enum value"],
+  "error": "Bad Request"
+}
+```
+
+### Type Safety
+
+Use TypeScript enums for type safety:
+```typescript
+import { WorkOrderStatus } from '@prisma/client';
+
+const status: WorkOrderStatus = WorkOrderStatus.EN_PROCESO;
+```
+
+### Filtering
+
+Use enum values in query parameters:
+```bash
+curl "http://localhost:3000/api/work-orders?status=EN_PROCESO" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Best Practices
+
+1. **Use enum values exactly** - Case-sensitive, use exact values
+2. **Validate client-side** - Provide dropdowns with enum options
+3. **Handle transitions** - Not all status transitions are valid
+4. **Document workflows** - Show valid status flow diagrams
+5. **Localize labels** - Enum values are constants; translate in UI

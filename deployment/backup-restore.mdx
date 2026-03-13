@@ -1,0 +1,650 @@
+---
+title: Backup & Restore
+description: Database backup strategies, volume backups, and disaster recovery procedures for DRAIT Mini-MES
+---
+
+## Overview
+
+Proper backup and restore procedures are critical for production deployments. This guide covers PostgreSQL database backups, Docker volume backups, and complete disaster recovery procedures.
+
+## Backup Strategies
+
+### Recommended Approach
+
+For production systems, implement a 3-2-1 backup strategy:
+
+- **3** copies of data (original + 2 backups)
+- **2** different storage media (local disk + cloud/NAS)
+- **1** offsite backup (cloud storage, remote server)
+
+### Backup Types
+
+| Type | Frequency | Retention | Use Case |
+|------|-----------|-----------|----------|
+| **Full Database** | Daily | 30 days | Complete recovery |
+| **Incremental** | Hourly | 7 days | Recent changes |
+| **Volume Snapshot** | Weekly | 90 days | Complete system state |
+| **Pre-Migration** | Before each migration | Until verified | Rollback safety |
+
+## PostgreSQL Database Backup
+
+### Full Database Backup
+
+Create a complete dump of the PostgreSQL database.
+
+<CodeGroup>
+```bash Basic Backup
+# Backup to file with timestamp
+docker compose exec drait-db pg_dump -U drait drait_mes > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Output: backup_20260313_143000.sql
+```
+
+```bash Compressed Backup
+# Backup with gzip compression (recommended)
+docker compose exec drait-db pg_dump -U drait drait_mes | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# Saves ~70-80% disk space
+```
+
+```bash Custom Format
+# Custom format (supports parallel restore)
+docker compose exec drait-db pg_dump -U drait -Fc drait_mes > backup_$(date +%Y%m%d_%H%M%S).dump
+
+# Smaller size + faster restore
+```
+
+```bash All Databases
+# Backup all databases (including postgres system DB)
+docker compose exec drait-db pg_dumpall -U drait > backup_all_$(date +%Y%m%d_%H%M%S).sql
+```
+</CodeGroup>
+
+### Schema-Only Backup
+
+Backup database structure without data:
+
+```bash
+# Schema only (tables, indexes, relationships)
+docker compose exec drait-db pg_dump -U drait -s drait_mes > schema_$(date +%Y%m%d).sql
+```
+
+Useful for:
+- Comparing schema changes
+- Setting up new environments
+- Development database initialization
+
+### Data-Only Backup
+
+Backup data without schema:
+
+```bash
+# Data only (no CREATE TABLE statements)
+docker compose exec drait-db pg_dump -U drait -a drait_mes > data_$(date +%Y%m%d).sql
+```
+
+### Specific Tables Backup
+
+Backup individual tables:
+
+<CodeGroup>
+```bash Single Table
+# Backup WorkOrder table
+docker compose exec drait-db pg_dump -U drait -t '"WorkOrder"' drait_mes > workorder_backup.sql
+
+# Note: Table names are case-sensitive and quoted
+```
+
+```bash Multiple Tables
+# Backup multiple tables
+docker compose exec drait-db pg_dump -U drait \
+  -t '"WorkOrder"' \
+  -t '"Client"' \
+  -t '"Material"' \
+  drait_mes > critical_tables.sql
+```
+
+```bash Exclude Tables
+# Backup everything except audit logs
+docker compose exec drait-db pg_dump -U drait \
+  --exclude-table='"AuditLog"' \
+  --exclude-table='"OperationLog"' \
+  drait_mes > backup_no_logs.sql
+```
+</CodeGroup>
+
+## Automated Backup Script
+
+Create a backup script with rotation:
+
+```bash backup.sh
+#!/bin/bash
+
+set -e
+
+# Configuration
+BACKUP_DIR="/var/backups/drait"
+RETENTION_DAYS=30
+DATABASE="drait_mes"
+USER="drait"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="${BACKUP_DIR}/drait_${TIMESTAMP}.sql.gz"
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+echo "Starting backup: $BACKUP_FILE"
+
+# Perform backup
+docker compose exec -T drait-db pg_dump -U "$USER" "$DATABASE" | gzip > "$BACKUP_FILE"
+
+# Verify backup
+if [ -f "$BACKUP_FILE" ]; then
+  SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+  echo "✅ Backup completed: $BACKUP_FILE ($SIZE)"
+else
+  echo "❌ Backup failed!"
+  exit 1
+fi
+
+# Remove old backups
+echo "Cleaning up backups older than $RETENTION_DAYS days..."
+find "$BACKUP_DIR" -name "drait_*.sql.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "Backup process complete"
+```
+
+**Make executable and test**:
+
+```bash
+chmod +x backup.sh
+./backup.sh
+```
+
+### Schedule Automated Backups
+
+<CodeGroup>
+```bash Cron (Linux)
+# Edit crontab
+crontab -e
+
+# Daily backup at 2 AM
+0 2 * * * /path/to/backup.sh >> /var/log/drait_backup.log 2>&1
+
+# Hourly backup during business hours (8 AM - 6 PM)
+0 8-18 * * * /path/to/backup.sh >> /var/log/drait_backup.log 2>&1
+```
+
+```bash Systemd Timer (Linux)
+# Create timer: /etc/systemd/system/drait-backup.timer
+[Unit]
+Description=DRAIT Database Backup Timer
+
+[Timer]
+OnCalendar=daily
+OnCalendar=02:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+# Create service: /etc/systemd/system/drait-backup.service
+[Unit]
+Description=DRAIT Database Backup
+
+[Service]
+Type=oneshot
+ExecStart=/path/to/backup.sh
+User=drait
+
+# Enable and start
+sudo systemctl enable drait-backup.timer
+sudo systemctl start drait-backup.timer
+```
+
+```bash Docker Container
+# Run backup in a sidecar container
+docker run -d --name drait-backup \
+  -v /var/backups/drait:/backups \
+  -e BACKUP_SCHEDULE="0 2 * * *" \
+  --network drait_default \
+  prodrigestivill/postgres-backup-local
+```
+</CodeGroup>
+
+## Database Restore
+
+<Warning>
+  **CRITICAL**: Restoring a database will **overwrite all existing data**. Always verify you have the correct backup file before proceeding.
+</Warning>
+
+### Full Database Restore
+
+<Steps>
+  <Step title="Stop the backend">
+    Prevent new connections during restore:
+    ```bash
+    docker compose stop drait-backend
+    ```
+  </Step>
+  
+  <Step title="Drop existing database (optional)">
+    For a clean restore:
+    ```bash
+    docker compose exec drait-db psql -U drait -c "DROP DATABASE IF EXISTS drait_mes;"
+    docker compose exec drait-db psql -U drait -c "CREATE DATABASE drait_mes;"
+    ```
+  </Step>
+  
+  <Step title="Restore from backup">
+    <CodeGroup>
+    ```bash Plain SQL
+    # Restore from .sql file
+    docker compose exec -T drait-db psql -U drait -d drait_mes < backup_20260313_143000.sql
+    ```
+    
+    ```bash Compressed SQL
+    # Restore from .sql.gz file
+    gunzip -c backup_20260313_143000.sql.gz | docker compose exec -T drait-db psql -U drait -d drait_mes
+    ```
+    
+    ```bash Custom Format
+    # Restore from .dump file
+    docker compose exec -T drait-db pg_restore -U drait -d drait_mes < backup_20260313_143000.dump
+    
+    # Parallel restore (faster, 4 jobs)
+    docker compose exec -T drait-db pg_restore -U drait -d drait_mes -j 4 < backup_20260313_143000.dump
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Verify restore">
+    Check data integrity:
+    ```bash
+    # Count records
+    docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT COUNT(*) FROM \"WorkOrder\";"
+    
+    # Check recent data
+    docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT * FROM \"Company\" LIMIT 5;"
+    ```
+  </Step>
+  
+  <Step title="Restart backend">
+    ```bash
+    docker compose start drait-backend
+    ```
+  </Step>
+  
+  <Step title="Test application">
+    Verify the application works correctly:
+    ```bash
+    curl http://localhost/api/auth/status
+    ```
+    
+    Try logging in and accessing key features.
+  </Step>
+</Steps>
+
+### Restore Specific Tables
+
+Restore individual tables without affecting others:
+
+```bash
+# Restore only WorkOrder table
+docker compose exec -T drait-db psql -U drait -d drait_mes < workorder_backup.sql
+
+# Or from full backup (extract specific table)
+pg_restore -U drait -d drait_mes -t '"WorkOrder"' backup.dump
+```
+
+<Note>
+  Restoring individual tables may cause foreign key constraint violations if related data is missing. Consider restoring dependent tables together.
+</Note>
+
+## Docker Volume Backup
+
+Backup the entire PostgreSQL data volume for complete system state.
+
+### Volume Backup Methods
+
+<CodeGroup>
+```bash Using tar
+# Stop database first (recommended)
+docker compose stop drait-db
+
+# Backup volume to tar.gz
+docker run --rm \
+  -v drait-mini-mes_postgres_data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/postgres_volume_$(date +%Y%m%d).tar.gz -C /data .
+
+# Restart database
+docker compose start drait-db
+```
+
+```bash Using docker cp
+# Create temporary container
+docker create --name temp_backup -v drait-mini-mes_postgres_data:/data alpine
+
+# Copy data out
+docker cp temp_backup:/data ./postgres_data_backup
+
+# Remove temporary container
+docker rm temp_backup
+
+# Create archive
+tar czf postgres_volume_$(date +%Y%m%d).tar.gz postgres_data_backup
+rm -rf postgres_data_backup
+```
+
+```bash Using rsync
+# Mount volume and sync to local directory
+docker run --rm \
+  -v drait-mini-mes_postgres_data:/data \
+  -v $(pwd)/backups:/backup \
+  instrumentisto/rsync-ssh \
+  rsync -avz /data/ /backup/postgres_data/
+```
+</CodeGroup>
+
+### Volume Restore
+
+<Steps>
+  <Step title="Stop all services">
+    ```bash
+    docker compose down
+    ```
+  </Step>
+  
+  <Step title="Remove old volume">
+    ```bash
+    docker volume rm drait-mini-mes_postgres_data
+    ```
+  </Step>
+  
+  <Step title="Restore volume from backup">
+    ```bash
+    # Create new volume
+    docker volume create drait-mini-mes_postgres_data
+    
+    # Restore data
+    docker run --rm \
+      -v drait-mini-mes_postgres_data:/data \
+      -v $(pwd):/backup \
+      alpine sh -c "cd /data && tar xzf /backup/postgres_volume_20260313.tar.gz"
+    ```
+  </Step>
+  
+  <Step title="Start services">
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+</Steps>
+
+## Complete System Backup
+
+Backup everything for complete disaster recovery:
+
+```bash full_backup.sh
+#!/bin/bash
+
+set -e
+
+BACKUP_DIR="/var/backups/drait/full"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_PATH="${BACKUP_DIR}/${TIMESTAMP}"
+
+mkdir -p "$BACKUP_PATH"
+
+echo "Starting full system backup: $BACKUP_PATH"
+
+# 1. Backup database
+echo "Backing up database..."
+docker compose exec -T drait-db pg_dump -U drait drait_mes | gzip > "${BACKUP_PATH}/database.sql.gz"
+
+# 2. Backup Docker volumes
+echo "Backing up volumes..."
+docker run --rm \
+  -v drait-mini-mes_postgres_data:/data \
+  -v "${BACKUP_PATH}":/backup \
+  alpine tar czf /backup/postgres_volume.tar.gz -C /data .
+
+# 3. Backup configuration files
+echo "Backing up configuration..."
+tar czf "${BACKUP_PATH}/config.tar.gz" \
+  .env \
+  docker-compose.yml \
+  infra/nginx/default.conf
+
+# 4. Backup application code (optional)
+echo "Backing up application code..."
+tar czf "${BACKUP_PATH}/application.tar.gz" \
+  --exclude='node_modules' \
+  --exclude='dist' \
+  --exclude='.git' \
+  apps/
+
+echo "✅ Full backup completed: $BACKUP_PATH"
+du -sh "$BACKUP_PATH"
+```
+
+## Disaster Recovery
+
+Complete restoration from full system backup:
+
+<Steps>
+  <Step title="Prepare new environment">
+    ```bash
+    # Install Docker and Docker Compose
+    # Clone/download DRAIT Mini-MES repository
+    cd /path/to/drait-mini-mes
+    ```
+  </Step>
+  
+  <Step title="Restore configuration">
+    ```bash
+    # Extract configuration
+    tar xzf /path/to/backup/config.tar.gz
+    
+    # Verify .env settings
+    cat .env
+    ```
+  </Step>
+  
+  <Step title="Restore application code (if needed)">
+    ```bash
+    tar xzf /path/to/backup/application.tar.gz
+    ```
+  </Step>
+  
+  <Step title="Create Docker volumes">
+    ```bash
+    docker volume create drait-mini-mes_postgres_data
+    ```
+  </Step>
+  
+  <Step title="Restore database volume">
+    ```bash
+    docker run --rm \
+      -v drait-mini-mes_postgres_data:/data \
+      -v /path/to/backup:/backup \
+      alpine sh -c "cd /data && tar xzf /backup/postgres_volume.tar.gz"
+    ```
+  </Step>
+  
+  <Step title="Start services">
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+  
+  <Step title="Verify recovery">
+    ```bash
+    # Check container health
+    docker compose ps
+    
+    # Test database
+    docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT COUNT(*) FROM \"Company\";"
+    
+    # Test application
+    curl http://localhost/api/auth/status
+    ```
+  </Step>
+</Steps>
+
+## Cloud Storage Integration
+
+### AWS S3 Backup
+
+```bash backup_to_s3.sh
+#!/bin/bash
+
+BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql.gz"
+S3_BUCKET="s3://your-bucket/drait-backups/"
+
+# Create backup
+docker compose exec -T drait-db pg_dump -U drait drait_mes | gzip > "/tmp/$BACKUP_FILE"
+
+# Upload to S3
+aws s3 cp "/tmp/$BACKUP_FILE" "${S3_BUCKET}${BACKUP_FILE}"
+
+# Cleanup local file
+rm "/tmp/$BACKUP_FILE"
+
+echo "✅ Backup uploaded to S3: ${S3_BUCKET}${BACKUP_FILE}"
+```
+
+### Google Cloud Storage
+
+```bash
+# Upload to GCS
+gsutil cp backup_20260313.sql.gz gs://your-bucket/drait-backups/
+
+# List backups
+gsutil ls gs://your-bucket/drait-backups/
+
+# Download backup
+gsutil cp gs://your-bucket/drait-backups/backup_20260313.sql.gz .
+```
+
+### Rsync to Remote Server
+
+```bash
+# Sync backups to remote server
+rsync -avz --delete \
+  /var/backups/drait/ \
+  user@backup-server:/backups/drait/
+```
+
+## Backup Verification
+
+<Warning>
+  **Critical**: Never trust a backup you haven't tested! Regularly verify backups can be restored successfully.
+</Warning>
+
+### Automated Verification Script
+
+```bash verify_backup.sh
+#!/bin/bash
+
+set -e
+
+BACKUP_FILE="$1"
+TEST_DB="drait_mes_test"
+
+if [ -z "$BACKUP_FILE" ]; then
+  echo "Usage: $0 <backup_file>"
+  exit 1
+fi
+
+echo "Verifying backup: $BACKUP_FILE"
+
+# Create test database
+docker compose exec drait-db psql -U drait -c "DROP DATABASE IF EXISTS $TEST_DB;"
+docker compose exec drait-db psql -U drait -c "CREATE DATABASE $TEST_DB;"
+
+# Restore to test database
+if [[ $BACKUP_FILE == *.gz ]]; then
+  gunzip -c "$BACKUP_FILE" | docker compose exec -T drait-db psql -U drait -d "$TEST_DB"
+else
+  docker compose exec -T drait-db psql -U drait -d "$TEST_DB" < "$BACKUP_FILE"
+fi
+
+# Verify data
+COMPANY_COUNT=$(docker compose exec -T drait-db psql -U drait -d "$TEST_DB" -t -c "SELECT COUNT(*) FROM \"Company\";" | tr -d ' ')
+WO_COUNT=$(docker compose exec -T drait-db psql -U drait -d "$TEST_DB" -t -c "SELECT COUNT(*) FROM \"WorkOrder\";" | tr -d ' ')
+
+echo "Verification Results:"
+echo "  Companies: $COMPANY_COUNT"
+echo "  Work Orders: $WO_COUNT"
+
+if [ "$COMPANY_COUNT" -gt 0 ] && [ "$WO_COUNT" -gt 0 ]; then
+  echo "✅ Backup verification successful!"
+  EXIT_CODE=0
+else
+  echo "❌ Backup verification failed!"
+  EXIT_CODE=1
+fi
+
+# Cleanup test database
+docker compose exec drait-db psql -U drait -c "DROP DATABASE IF EXISTS $TEST_DB;"
+
+exit $EXIT_CODE
+```
+
+**Run verification**:
+
+```bash
+./verify_backup.sh /var/backups/drait/backup_20260313_143000.sql.gz
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Test restores regularly">
+    Perform quarterly disaster recovery drills to verify backup procedures.
+  </Step>
+  
+  <Step title="Monitor backup jobs">
+    Set up alerts for backup failures. Check logs daily.
+  </Step>
+  
+  <Step title="Implement 3-2-1 strategy">
+    - 3 copies (production + local backup + offsite)
+    - 2 media types (local disk + cloud)
+    - 1 offsite location
+  </Step>
+  
+  <Step title="Encrypt backups">
+    ```bash
+    # Encrypt backup with GPG
+    gpg --symmetric --cipher-algo AES256 backup.sql.gz
+    
+    # Decrypt
+    gpg --decrypt backup.sql.gz.gpg > backup.sql.gz
+    ```
+  </Step>
+  
+  <Step title="Document procedures">
+    Maintain runbooks for backup and restore procedures. Include:
+    - Backup schedules
+    - Restore procedures
+    - Contact information
+    - Access credentials (stored securely)
+  </Step>
+  
+  <Step title="Monitor disk space">
+    Ensure backup storage has sufficient space:
+    ```bash
+    df -h /var/backups/drait
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+- Set up [Monitoring](/deployment/monitoring) to track backup job success
+- Review [Troubleshooting](/deployment/troubleshooting) for backup-related issues
+- Configure [Environment Variables](/deployment/environment-variables) for backup scripts
+- Implement [Database Setup](/deployment/database-setup) for proper migrations before backups

@@ -1,0 +1,361 @@
+---
+title: Quotations
+description: Manage commercial quotations and estimates
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/quotations
+
+Retrieve all quotations for the authenticated user's company.
+
+### Query Parameters
+
+<ParamField query="status" type="string">
+  Filter by status: `BORRADOR`, `ENVIADO`, `APROBADO`, `RECHAZADO`
+</ParamField>
+
+<ParamField query="clientId" type="string">
+  Filter by client ID
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code, title, or description
+</ParamField>
+
+### Response
+
+Returns an array of quotation objects.
+
+<ResponseField name="id" type="string">Quotation ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="clientId" type="string">Client ID</ResponseField>
+<ResponseField name="code" type="string">Quotation code (e.g., Q-2026-001)</ResponseField>
+<ResponseField name="title" type="string">Quotation title</ResponseField>
+<ResponseField name="description" type="string">Detailed description</ResponseField>
+<ResponseField name="status" type="string">Status: BORRADOR, ENVIADO, APROBADO, RECHAZADO</ResponseField>
+<ResponseField name="estimatedTimeMin" type="number">Estimated time in minutes</ResponseField>
+<ResponseField name="estimatedCost" type="number">Estimated cost (decimal)</ResponseField>
+<ResponseField name="estimatedMaterials" type="string">Materials description</ResponseField>
+<ResponseField name="attachmentUrl" type="string">Attachment file URL</ResponseField>
+<ResponseField name="validUntil" type="string">Expiration date (ISO 8601)</ResponseField>
+<ResponseField name="approvedAt" type="string">Approval date (ISO 8601)</ResponseField>
+<ResponseField name="createdAt" type="string">Creation timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">Last update timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl "http://localhost:3000/api/quotations?status=APROBADO" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxq123abc",
+    "companyId": "clx456def",
+    "clientId": "clx789ghi",
+    "code": "Q-2026-001",
+    "title": "Custom Manufacturing Order",
+    "description": "Precision parts manufacturing for industrial machinery",
+    "status": "APROBADO",
+    "estimatedTimeMin": 2400,
+    "estimatedCost": 15000.00,
+    "estimatedMaterials": "Aluminum alloy, Steel components",
+    "attachmentUrl": "/uploads/quotation-123.pdf",
+    "validUntil": "2026-04-30T23:59:59.000Z",
+    "approvedAt": "2026-03-10T14:00:00.000Z",
+    "createdAt": "2026-03-01T10:00:00.000Z",
+    "updatedAt": "2026-03-10T14:00:00.000Z"
+  }
+]
+```
+
+---
+
+## GET /api/quotations/:id
+
+Retrieve a specific quotation with all details including line items.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Response
+
+Returns a quotation object including nested `items` array.
+
+<ResponseField name="items" type="array">
+  Array of quotation line items
+  
+  <Expandable title="Item properties">
+    <ResponseField name="id" type="string">Item ID</ResponseField>
+    <ResponseField name="quotationId" type="string">Parent quotation ID</ResponseField>
+    <ResponseField name="description" type="string">Item description</ResponseField>
+    <ResponseField name="quantity" type="number">Quantity (decimal)</ResponseField>
+    <ResponseField name="unit" type="string">Unit of measurement</ResponseField>
+    <ResponseField name="estimatedUnitCost" type="number">Cost per unit</ResponseField>
+    <ResponseField name="estimatedHoursMin" type="number">Estimated hours in minutes</ResponseField>
+    <ResponseField name="position" type="number">Display order</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/quotations/clxq123abc \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+---
+
+## POST /api/quotations
+
+Create a new quotation with line items.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="clientId" type="string" required>
+  Client ID
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  Unique quotation code (e.g., Q-2026-001)
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Quotation title
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Detailed description
+</ParamField>
+
+<ParamField body="estimatedTimeMin" type="number" required>
+  Total estimated time in minutes (min: 0)
+</ParamField>
+
+<ParamField body="estimatedCost" type="number" required>
+  Total estimated cost (min: 0)
+</ParamField>
+
+<ParamField body="estimatedMaterials" type="string">
+  Materials description
+</ParamField>
+
+<ParamField body="status" type="string">
+  Initial status (default: BORRADOR)
+</ParamField>
+
+<ParamField body="validUntil" type="string">
+  Expiration date (ISO 8601 format)
+</ParamField>
+
+<ParamField body="items" type="array" required>
+  Array of line items
+  
+  <Expandable title="Item structure">
+    <ParamField body="description" type="string" required>
+      Item description
+    </ParamField>
+    <ParamField body="quantity" type="number" required>
+      Quantity (min: 0.001)
+    </ParamField>
+    <ParamField body="unit" type="string" required>
+      Unit of measurement (e.g., "pcs", "kg", "hours")
+    </ParamField>
+    <ParamField body="estimatedUnitCost" type="number" required>
+      Cost per unit (min: 0)
+    </ParamField>
+    <ParamField body="estimatedHoursMin" type="number">
+      Estimated hours in minutes
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/quotations \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientId": "clx789ghi",
+    "code": "Q-2026-002",
+    "title": "Manufacturing Project Alpha",
+    "description": "Custom parts manufacturing with assembly",
+    "estimatedTimeMin": 3000,
+    "estimatedCost": 20000.00,
+    "estimatedMaterials": "Steel, Aluminum, Electronics",
+    "validUntil": "2026-05-31T23:59:59.000Z",
+    "items": [
+      {
+        "description": "Machined steel component A",
+        "quantity": 50,
+        "unit": "pcs",
+        "estimatedUnitCost": 150.00,
+        "estimatedHoursMin": 1200
+      },
+      {
+        "description": "Aluminum housing",
+        "quantity": 50,
+        "unit": "pcs",
+        "estimatedUnitCost": 250.00,
+        "estimatedHoursMin": 1800
+      }
+    ]
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/quotations/:id
+
+Update a quotation. All fields are optional.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Request Body
+
+Same fields as POST, all optional.
+
+---
+
+## PATCH /api/quotations/:id/status
+
+Update quotation status.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="status" type="string" required>
+  New status: BORRADOR, ENVIADO, APROBADO, RECHAZADO
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/quotations/clxq123abc/status \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "APROBADO"}'
+```
+</CodeGroup>
+
+---
+
+## POST /api/quotations/:id/attachment
+
+Upload an attachment file for a quotation.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Request
+
+- **Content-Type:** `multipart/form-data`
+- **Field Name:** `file`
+- **Max Size:** 10 MB
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/quotations/clxq123abc/attachment \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/quotation.pdf"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "attachmentUrl": "/uploads/file-1710336000000-123456789.pdf"
+}
+```
+
+---
+
+## DELETE /api/quotations/:id/attachment
+
+Remove an attachment from a quotation.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+---
+
+## DELETE /api/quotations/:id
+
+Delete a quotation (soft delete).
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+---
+
+## GET /api/quotations/status
+
+Check quotations service health status.
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/quotations/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>

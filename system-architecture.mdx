@@ -1,0 +1,929 @@
+---
+title: 'System Architecture'
+description: 'Technical architecture, technology stack, and deployment model of DRAIT Mini-MES'
+---
+
+# System Architecture
+
+DRAIT Mini-MES is built as a modern three-tier web application designed for on-premise deployment using Docker containers.
+
+## High-Level Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        Browser[Web Browser]
+    end
+    
+    subgraph "Nginx Reverse Proxy"
+        Nginx[Nginx 1.27-alpine]
+    end
+    
+    subgraph "Application Layer"
+        Frontend[React Frontend<br/>Port 80]
+        Backend[NestJS Backend<br/>Port 3000]
+    end
+    
+    subgraph "Data Layer"
+        Database[(PostgreSQL 16<br/>Port 5432)]
+    end
+    
+    Browser -->|HTTP :80| Nginx
+    Nginx -->|/ | Frontend
+    Nginx -->|/api/| Backend
+    Backend -->|Prisma ORM| Database
+    Frontend -.->|API Calls| Nginx
+```
+
+## Architecture Tiers
+
+### 1. Presentation Layer (Frontend)
+
+The frontend is a Single Page Application (SPA) built with modern React.
+
+**Technology Stack:**
+
+| Technology | Version | Purpose |
+|------------|---------|----------|
+| React | 18.3.1 | UI framework |
+| TypeScript | 5.7.2 | Type safety |
+| Vite | 6.2.0 | Build tool & dev server |
+| React Router | 6.30.0 | Client-side routing |
+| TanStack Query | 5.66.0 | Server state management |
+| Axios | 1.7.9 | HTTP client |
+| Recharts | 3.8.0 | Data visualization |
+| Tailwind CSS | 3.4.17 | Styling framework |
+| Lucide React | 0.511.0 | Icon library |
+
+From `apps/frontend/package.json:13-24`.
+
+**Directory Structure:**
+
+```
+frontend/src/
+├── app/
+│   ├── providers/      # React Query, Auth context providers
+│   └── router/         # Route configuration
+├── features/           # Feature-based modules
+│   ├── auth/          # Authentication
+│   ├── dashboard/     # KPI dashboard
+│   ├── clients/       # Client management
+│   ├── quotations/    # Quotation system
+│   ├── work-orders/   # Work order management
+│   ├── materials/     # Inventory
+│   ├── resources/     # Resource management
+│   ├── operator/      # Operator view
+│   ├── supervisor/    # Supervisor view
+│   ├── users/         # User management
+│   ├── reports/       # Analytics
+│   └── audit/         # Audit logs
+└── shared/
+    ├── api/           # API client configuration
+    ├── components/    # Reusable components
+    ├── layouts/       # Page layouts
+    ├── ui/            # UI primitives
+    └── utils/         # Helper functions
+```
+
+<Info>
+The frontend follows a **feature-sliced** architecture pattern, where each business domain is self-contained with its own components, hooks, and API calls.
+</Info>
+
+---
+
+### 2. Application Layer (Backend)
+
+The backend is built with NestJS, a progressive Node.js framework using TypeScript.
+
+**Technology Stack:**
+
+| Technology | Version | Purpose |
+|------------|---------|----------|
+| NestJS | 10.4.15 | Backend framework |
+| TypeScript | 5.8.2 | Type safety |
+| Prisma | 5.22.0 | ORM & migrations |
+| PostgreSQL | 16 (alpine) | Database driver |
+| JWT | 10.2.0 | Authentication |
+| Passport | 0.7.0 | Auth strategies |
+| bcrypt | 5.1.1 | Password hashing |
+| class-validator | 0.14.1 | DTO validation |
+| @nestjs/throttler | 6.5.0 | Rate limiting |
+
+From `apps/backend/package.json:21-39`.
+
+**Directory Structure:**
+
+```
+backend/src/
+├── common/
+│   ├── auth/              # Auth guards, decorators, interfaces
+│   └── dto/               # Shared DTOs (pagination, etc.)
+├── modules/
+│   ├── auth/              # Authentication module
+│   ├── users/             # User management
+│   ├── companies/         # Company/tenant management
+│   ├── clients/           # Client CRUD
+│   ├── quotations/        # Quotation system
+│   ├── work-orders/       # Work order lifecycle
+│   ├── resources/         # Resource management
+│   ├── materials/         # Inventory control
+│   ├── operation-logs/    # Traceability logs
+│   ├── reports/           # Dashboard & analytics
+│   └── audit/             # Audit logging
+├── prisma/
+│   └── prisma.service.ts  # Prisma client wrapper
+├── app.module.ts          # Root module
+└── main.ts                # Application bootstrap
+```
+
+**Module Architecture:**
+
+Each module follows NestJS conventions:
+- `*.controller.ts` - HTTP endpoints
+- `*.service.ts` - Business logic
+- `*.module.ts` - Dependency injection configuration
+- `dto/*.dto.ts` - Data transfer objects with validation
+
+---
+
+### 3. Data Layer (Database)
+
+**PostgreSQL 16** with Prisma ORM for type-safe database access.
+
+**Key Tables:**
+
+<Tabs>
+  <Tab title="Core Entities">
+    - `Company` - Multi-tenant container
+    - `User` - System users with roles
+    - `Client` - Customer records
+    - `Quotation` - Sales quotations
+    - `QuotationItem` - Quotation line items
+    - `WorkOrder` - Production orders
+  </Tab>
+  <Tab title="Resources">
+    - `Resource` - Machines and operators
+    - `WorkOrderAssignment` - Resource → OT mapping
+    - `Material` - Inventory items
+    - `MaterialMovement` - Stock transactions
+    - `MaterialConsumption` - OT material usage
+  </Tab>
+  <Tab title="Traceability">
+    - `OperationLog` - Shop floor events
+    - `AuditLog` - System-wide audit trail
+  </Tab>
+</Tabs>
+
+**Schema Management:**
+
+From `apps/backend/package.json:14-16`:
+
+```bash
+npm run prisma:migrate    # Apply schema changes
+npm run prisma:generate   # Generate Prisma client
+npm run prisma:seed       # Load demo data
+```
+
+**Relationships:**
+
+```mermaid
+erDiagram
+    Company ||--o{ User : has
+    Company ||--o{ Client : has
+    Company ||--o{ WorkOrder : has
+    Company ||--o{ Resource : has
+    Company ||--o{ Material : has
+    
+    Client ||--o{ Quotation : requests
+    Client ||--o{ WorkOrder : receives
+    
+    Quotation ||--o{ QuotationItem : contains
+    Quotation ||--o{ WorkOrder : converts-to
+    
+    WorkOrder ||--o{ WorkOrderAssignment : assigns
+    WorkOrder ||--o{ OperationLog : tracks
+    WorkOrder ||--o{ MaterialConsumption : consumes
+    
+    Resource ||--o{ WorkOrderAssignment : assigned-to
+    User ||--o{ WorkOrderAssignment : works-on
+    
+    Material ||--o{ MaterialMovement : history
+    Material ||--o{ MaterialConsumption : used-in
+```
+
+<Tip>
+All major entities include a `companyId` foreign key for multi-tenant data isolation. This allows the same database to serve multiple companies with complete data separation.
+</Tip>
+
+---
+
+## Data Flow
+
+### User Interaction Flow
+
+From browser to database and back:
+
+<Steps>
+  <Step title="User Action">
+    User clicks "Create Work Order" button in the React frontend
+  </Step>
+  
+  <Step title="Frontend Validation">
+    Form validation using TypeScript types and HTML5 validation
+  </Step>
+  
+  <Step title="API Request">
+    TanStack Query mutation sends POST request to `/api/work-orders`
+    
+    ```typescript
+    // From apps/frontend/src/shared/api/http.ts:9-17
+    api.interceptors.request.use((config) => {
+      const token = getAccessToken();  // From localStorage
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+    ```
+  </Step>
+  
+  <Step title="Nginx Routing">
+    Nginx reverse proxy routes `/api/*` to backend container
+    
+    ```nginx
+    # From infra/nginx/default.conf:7-14
+    location /api/ {
+      proxy_pass http://drait-backend:3000/api/;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    ```
+  </Step>
+  
+  <Step title="Authentication Guard">
+    JWT token validated by `JwtAuthGuard`
+    
+    ```typescript
+    // From apps/backend/src/common/auth/jwt-auth.guard.ts:28-35
+    const token = authHeader.slice(7);
+    const payload = this.jwtService.verify<JwtUser>(token, {
+      secret: process.env.JWT_SECRET
+    });
+    request.user = payload;  // Attach user context
+    ```
+  </Step>
+  
+  <Step title="Authorization Check">
+    `RolesGuard` verifies user has required role (e.g., SUPERVISOR+)
+  </Step>
+  
+  <Step title="DTO Validation">
+    Request body validated using `class-validator` decorators
+    
+    ```typescript
+    // From main.ts:28-34
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,           // Strip unknown properties
+        forbidNonWhitelisted: true, // Reject unknown properties
+        transform: true            // Auto-transform to DTO types
+      })
+    );
+    ```
+  </Step>
+  
+  <Step title="Business Logic">
+    Controller delegates to service layer for business logic
+  </Step>
+  
+  <Step title="Database Transaction">
+    Prisma ORM executes type-safe database operations
+    
+    ```typescript
+    // Example from work-orders.service.ts
+    const workOrder = await this.prisma.workOrder.create({
+      data: {
+        companyId: user.companyId,  // Auto-scoped to user's company
+        clientId: dto.clientId,
+        code: await this.generateCode(user.companyId),
+        // ... other fields
+      }
+    });
+    ```
+  </Step>
+  
+  <Step title="Audit Logging">
+    Audit service records action in `AuditLog` table (for sensitive operations)
+  </Step>
+  
+  <Step title="HTTP Response">
+    JSON response returned through Nginx to frontend
+  </Step>
+  
+  <Step title="UI Update">
+    TanStack Query automatically invalidates cache and re-fetches data, updating UI
+  </Step>
+</Steps>
+
+---
+
+## Authentication Flow
+
+JWT-based stateless authentication with localStorage persistence.
+
+### Login Sequence
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant DB as Database
+    
+    U->>F: Enter email/password
+    F->>B: POST /api/auth/login
+    B->>DB: SELECT user WHERE email=?
+    DB-->>B: User record
+    B->>B: bcrypt.compare(password, hash)
+    B->>B: Generate JWT token
+    B->>DB: INSERT AuditLog (LOGIN)
+    B-->>F: {accessToken, user}
+    F->>F: localStorage.setItem('drait.session')
+    F->>F: Set axios Authorization header
+    F-->>U: Redirect to dashboard
+```
+
+### JWT Payload Structure
+
+From `apps/backend/src/modules/auth/auth.service.ts:47-53`:
+
+```typescript
+const payload: JwtUser = {
+  sub: user.id,              // Subject (user ID)
+  companyId: user.companyId, // Tenant isolation
+  role: user.role,           // OPERARIO | SUPERVISOR | DUENO | ADMIN
+  email: user.email,
+  fullName: user.fullName
+};
+
+const accessToken = await this.jwtService.signAsync(payload, {
+  secret: process.env.JWT_SECRET,
+  expiresIn: process.env.JWT_EXPIRES_IN || '8h'
+});
+```
+
+### Token Validation
+
+Every protected API request:
+
+1. **Frontend** attaches token to `Authorization: Bearer <token>` header
+2. **JwtAuthGuard** verifies signature and expiration
+3. **User context** attached to request object
+4. **RolesGuard** checks role permissions
+5. **CompanyId** used to scope all database queries
+
+### Session Management
+
+From `apps/frontend/src/features/auth/session.ts:12-41`:
+
+```typescript
+export function getSession(): SessionData | null {
+  const raw = localStorage.getItem('drait.session');
+  if (!raw) return null;
+  
+  try {
+    const parsed = JSON.parse(raw) as SessionData;
+    return parsed;
+  } catch {
+    localStorage.removeItem('drait.session');
+    return null;
+  }
+}
+```
+
+**Auto-logout on 401:**
+
+From `apps/frontend/src/shared/api/http.ts:19-28`:
+
+```typescript
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      clearSessionAndRedirect();  // Clear token, redirect to /login
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+<Warning>
+**Security Considerations:**
+- JWT tokens are stored in `localStorage` (vulnerable to XSS)
+- Tokens expire after 8 hours (configurable via `JWT_EXPIRES_IN`)
+- No refresh token implemented (user must re-login after expiration)
+- HTTPS strongly recommended for production
+- Consider implementing refresh tokens for improved security (see Phase 2 suggestions)
+</Warning>
+
+---
+
+## Docker Deployment Architecture
+
+Fully containerized deployment using Docker Compose.
+
+### Container Services
+
+From `docker-compose.yml:1-69`:
+
+<Tabs>
+  <Tab title="Database Container">
+    **Service:** `drait-db`
+    
+    ```yaml
+    image: postgres:16-alpine
+    container_name: drait-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ```
+    
+    - Persistent volume for data durability
+    - Health check ensures database is ready before backend starts
+    - Configurable via `.env` (POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD)
+  </Tab>
+  
+  <Tab title="Backend Container">
+    **Service:** `drait-backend`
+    
+    ```yaml
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: drait-backend
+    restart: unless-stopped
+    depends_on:
+      drait-db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    ```
+    
+    - Waits for database health check before starting
+    - Connects to PostgreSQL via `DATABASE_URL`
+    - Listens on port 3000 (internal)
+    - Not exposed externally (proxied via Nginx)
+  </Tab>
+  
+  <Tab title="Frontend Container">
+    **Service:** `drait-frontend`
+    
+    ```yaml
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: drait-frontend
+    restart: unless-stopped
+    ```
+    
+    - Built with Vite (static assets)
+    - Serves on port 80 (internal)
+    - Not exposed externally (proxied via Nginx)
+    - API URL baked in at build time
+  </Tab>
+  
+  <Tab title="Nginx Container">
+    **Service:** `drait-nginx`
+    
+    ```yaml
+    image: nginx:1.27-alpine
+    container_name: drait-nginx
+    restart: unless-stopped
+    depends_on:
+      - drait-backend
+      - drait-frontend
+    ports:
+      - "${HTTP_PORT}:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ```
+    
+    - Only service exposed to host network
+    - Routes `/api/*` to backend
+    - Routes `/*` to frontend
+    - Configurable via `infra/nginx/default.conf`
+  </Tab>
+</Tabs>
+
+### Network Topology
+
+```mermaid
+graph TB
+    subgraph "Host Machine"
+        Port[":80 (HTTP_PORT)"]
+    end
+    
+    subgraph "Docker Bridge Network"
+        Nginx["drait-nginx<br/>nginx:1.27-alpine<br/>:80"]
+        Frontend["drait-frontend<br/>Custom Build<br/>:80"]
+        Backend["drait-backend<br/>Custom Build<br/>:3000"]
+        Database["drait-db<br/>postgres:16-alpine<br/>:5432"]
+        
+        Nginx -->|"proxy_pass /"| Frontend
+        Nginx -->|"proxy_pass /api/"| Backend
+        Backend -->|"DATABASE_URL"| Database
+    end
+    
+    Port -.->|Port mapping| Nginx
+    
+    subgraph "Docker Volume"
+        PGData[("postgres_data")]
+    end
+    
+    Database -.->|Persist| PGData
+```
+
+<Info>
+All containers run on a shared Docker bridge network, allowing service discovery via container names (e.g., `http://drait-backend:3000`).
+</Info>
+
+### Deployment Commands
+
+From `README.md:73-98`:
+
+<Steps>
+  <Step title="Copy environment file">
+    ```bash
+    cp .env.example .env
+    # Edit .env with production values
+    ```
+  </Step>
+  
+  <Step title="Start containers">
+    ```bash
+    docker compose up --build -d
+    ```
+    - `--build`: Rebuild images
+    - `-d`: Detached mode (background)
+  </Step>
+  
+  <Step title="Run database migrations">
+    ```bash
+    docker compose exec backend npm run prisma:migrate
+    ```
+    - Creates/updates database schema
+    - Runs enum normalization scripts
+  </Step>
+  
+  <Step title="Seed demo data (optional)">
+    ```bash
+    docker compose exec backend npm run prisma:seed
+    ```
+    - Creates sample users, clients, work orders, etc.
+    - Useful for testing and demos
+  </Step>
+  
+  <Step title="Access application">
+    - Frontend: `http://localhost/`
+    - API Health: `http://localhost/api/auth/status`
+  </Step>
+</Steps>
+
+### Environment Configuration
+
+From `.env.example`:
+
+```bash
+# Database
+POSTGRES_DB=drait_mes
+POSTGRES_USER=drait_user
+POSTGRES_PASSWORD=ChangeMe123!
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql://drait_user:ChangeMe123!@drait-db:5432/drait_mes
+
+# Backend
+NODE_ENV=production
+BACKEND_PORT=3000
+JWT_SECRET=CHANGE_THIS_TO_A_STRONG_RANDOM_SECRET_IN_PRODUCTION
+JWT_EXPIRES_IN=8h
+CORS_ORIGIN=http://localhost
+
+# Frontend
+VITE_API_BASE_URL=/api
+
+# Nginx
+HTTP_PORT=80
+
+# Timezone
+TZ=America/Argentina/Buenos_Aires
+```
+
+<Warning>
+**Production Security Checklist:**
+
+1. Change `POSTGRES_PASSWORD` to a strong password
+2. Generate a cryptographically secure `JWT_SECRET` (32+ characters)
+3. Update `CORS_ORIGIN` to your domain
+4. Enable HTTPS with SSL certificates (requires nginx config changes)
+5. Set `NODE_ENV=production`
+6. Review Prisma migration files before applying
+7. Implement regular database backups
+
+From `apps/backend/src/main.ts:16-24`, the backend will refuse to start in production with weak JWT secrets.
+</Warning>
+
+---
+
+## Technology Decisions
+
+### Why This Stack?
+
+<Accordion title="Why NestJS?">
+- **Enterprise-grade** Node.js framework with TypeScript
+- **Modular architecture** - easy to scale and maintain
+- **Built-in** dependency injection, guards, interceptors
+- **First-class** Prisma integration
+- **Extensive** ecosystem (throttling, validation, etc.)
+- **Familiar** to developers from Java/C# backgrounds
+</Accordion>
+
+<Accordion title="Why React 18?">
+- **Industry standard** for SPAs
+- **Concurrent rendering** for better performance
+- **Rich ecosystem** of libraries and tools
+- **Component reusability** for consistent UI
+- **TypeScript support** for type safety
+- **Large talent pool** for hiring
+</Accordion>
+
+<Accordion title="Why Prisma ORM?">
+- **Type-safe** database queries (auto-generated types)
+- **Migration system** - version control for schema changes
+- **Schema-first** approach - single source of truth
+- **Excellent** PostgreSQL support
+- **Prevents** SQL injection by design
+- **Introspection** tools for debugging
+</Accordion>
+
+<Accordion title="Why PostgreSQL?">
+- **ACID compliance** for data integrity
+- **JSON support** for flexible audit logs and metadata
+- **Advanced** indexing for performance
+- **Free and open-source** (no licensing costs)
+- **Proven reliability** in production
+- **Excellent** Docker support (official images)
+</Accordion>
+
+<Accordion title="Why TanStack Query?">
+- **Server state management** - caching, refetching, synchronization
+- **Automatic** background refetching
+- **Optimistic updates** for better UX
+- **Request deduplication** - avoid duplicate API calls
+- **Error handling** and retry logic
+- **DevTools** for debugging
+</Accordion>
+
+<Accordion title="Why Docker?">
+- **Consistent** development and production environments
+- **Easy deployment** - single command to start entire stack
+- **Dependency isolation** - no conflicts with host system
+- **Portable** - runs on any Docker-compatible host
+- **Scalable** - easy to add services (Redis, background workers, etc.)
+- **Version pinning** - exact control over runtime versions
+</Accordion>
+
+---
+
+## Performance Considerations
+
+### Database Optimization
+
+**Indexes** defined in `schema.prisma` for common queries:
+
+```prisma
+model WorkOrder {
+  // ...
+  @@index([companyId, status])        // Filter by status
+  @@index([companyId, commitmentDate]) // Sort by due date
+}
+
+model Client {
+  // ...
+  @@index([companyId, name])     // Search by name
+  @@index([companyId, isActive]) // Filter active clients
+}
+
+model OperationLog {
+  // ...
+  @@index([companyId, workOrderId, eventAt]) // Event timeline
+}
+```
+
+### API Rate Limiting
+
+From `apps/backend/package.json:30`:
+
+```typescript
+"@nestjs/throttler": "^6.5.0"
+```
+
+Prevents API abuse and DDoS attacks. Configure in `app.module.ts`.
+
+### Frontend Optimization
+
+- **Code splitting** via React Router lazy loading
+- **Tree shaking** by Vite for minimal bundle size
+- **Asset optimization** (Vite minification)
+- **TanStack Query caching** reduces API calls
+
+### Nginx Caching
+
+Add to `nginx.conf` for static asset caching:
+
+```nginx
+location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$ {
+  expires 1y;
+  add_header Cache-Control "public, immutable";
+}
+```
+
+---
+
+## Scalability Path
+
+### Vertical Scaling (Current)
+
+- Increase Docker container resources (CPU, RAM)
+- Optimize PostgreSQL settings (`shared_buffers`, `work_mem`)
+- Add database connection pooling (PgBouncer)
+
+### Horizontal Scaling (Future)
+
+<Steps>
+  <Step title="Database Replication">
+    - PostgreSQL read replicas for reporting queries
+    - Primary for writes, replicas for reads
+  </Step>
+  
+  <Step title="Backend Instances">
+    - Multiple backend containers behind Nginx load balancer
+    - Stateless design (JWT) allows easy scaling
+  </Step>
+  
+  <Step title="Caching Layer">
+    - Redis for session storage and query caching
+    - Reduce database load for repeated queries
+  </Step>
+  
+  <Step title="CDN for Frontend">
+    - Serve static assets from CDN (CloudFlare, AWS CloudFront)
+    - Reduce bandwidth and improve global performance
+  </Step>
+  
+  <Step title="Background Jobs">
+    - Move heavy tasks to queue workers (BullMQ + Redis)
+    - Report generation, email sending, etc.
+  </Step>
+</Steps>
+
+---
+
+## Security Architecture
+
+### Authentication & Authorization
+
+<CardGroup cols={2}>
+  <Card title="JWT Tokens" icon="key">
+    - Signed with `JWT_SECRET`
+    - 8-hour expiration (configurable)
+    - Includes `companyId` for tenant isolation
+    - Role embedded for authorization
+  </Card>
+  
+  <Card title="Password Security" icon="lock">
+    - bcrypt hashing with salt (10 rounds)
+    - Passwords never logged or returned in API
+    - No password recovery (admin reset only)
+  </Card>
+  
+  <Card title="Role-Based Access" icon="shield-check">
+    - Guard decorators on sensitive endpoints
+    - Frontend route protection
+    - Database queries scoped to `companyId`
+  </Card>
+  
+  <Card title="Input Validation" icon="check-circle">
+    - DTO validation with `class-validator`
+    - SQL injection prevention via Prisma
+    - XSS prevention (React escapes by default)
+  </Card>
+</CardGroup>
+
+### Network Security
+
+- **Nginx reverse proxy** - backend not directly exposed
+- **CORS policy** - restrict API access to known origins
+- **Rate limiting** via `@nestjs/throttler`
+- **Docker network isolation** - containers communicate on private network
+
+### Data Protection
+
+- **Soft deletes** - `isActive=false` instead of DELETE (audit trail)
+- **Audit logging** - all sensitive actions recorded
+- **Company isolation** - every query filtered by `companyId`
+- **No PII in logs** - passwords and tokens excluded
+
+<Tip>
+**Recommended Production Additions:**
+
+1. HTTPS/TLS certificates (Let's Encrypt)
+2. Web Application Firewall (WAF)
+3. Database encryption at rest
+4. Regular security audits
+5. Automated backup system
+6. Intrusion detection system (IDS)
+</Tip>
+
+---
+
+## Monitoring & Observability
+
+### Health Checks
+
+**Backend Health Endpoint:**
+
+```typescript
+GET /api/auth/status
+// Response: { "module": "auth", "status": "ready" }
+```
+
+**Docker Health Checks:**
+
+From `docker-compose.yml:38-43`:
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "node -e \"require('http').get(...)\""]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+```
+
+### Logging
+
+**Backend Logging:**
+
+```typescript
+// From main.ts:9
+const logger = new Logger('Bootstrap');
+logger.log('🚀 Backend escuchando en el puerto ${port}');
+```
+
+**View Logs:**
+
+```bash
+docker compose logs -f backend    # Backend logs
+docker compose logs -f drait-db   # Database logs
+docker compose logs --tail=100    # Last 100 lines from all services
+```
+
+### Future Enhancements
+
+- **Structured logging** with Winston or Pino
+- **APM integration** (Application Performance Monitoring)
+- **Grafana dashboards** for metrics visualization
+- **Alerting** for errors and downtime (email, Slack)
+- **Request tracing** with correlation IDs
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Features Overview" icon="list" href="/features">
+    Explore all system capabilities
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/getting-started">
+    Deploy your own instance
+  </Card>
+  <Card title="API Documentation" icon="code" href="/api/overview">
+    Complete endpoint reference
+  </Card>
+  <Card title="Installation Guide" icon="terminal" href="/getting-started/installation">
+    Deploy your own instance
+  </Card>
+</CardGroup>

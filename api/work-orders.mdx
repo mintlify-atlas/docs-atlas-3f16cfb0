@@ -1,0 +1,506 @@
+---
+title: Work Orders
+description: Manage production work orders and operational workflow
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/work-orders
+
+Retrieve all work orders with filtering options.
+
+### Query Parameters
+
+<ParamField query="status" type="string">
+  Filter by status: PENDIENTE, PLANIFICADA, EN_PROCESO, PAUSADA, FINALIZADA, ENTREGADA, CANCELADA, RETRABAJO
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code, title, or description
+</ParamField>
+
+<ParamField query="assignedToMe" type="boolean">
+  Filter work orders assigned to current user (use `true`)
+</ParamField>
+
+### Response
+
+Returns an array of work order objects.
+
+<ResponseField name="id" type="string">Work order ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="clientId" type="string">Client ID</ResponseField>
+<ResponseField name="quotationId" type="string">Related quotation ID</ResponseField>
+<ResponseField name="code" type="string">Work order code (e.g., OT-2026-001)</ResponseField>
+<ResponseField name="title" type="string">Work order title</ResponseField>
+<ResponseField name="description" type="string">Detailed description</ResponseField>
+<ResponseField name="status" type="string">Current status</ResponseField>
+<ResponseField name="priority" type="number">Priority (1=high, 5=low)</ResponseField>
+<ResponseField name="plannedDate" type="string">Planned start date</ResponseField>
+<ResponseField name="commitmentDate" type="string">Commitment/deadline date</ResponseField>
+<ResponseField name="startedAt" type="string">Actual start timestamp</ResponseField>
+<ResponseField name="finishedAt" type="string">Finish timestamp</ResponseField>
+<ResponseField name="deliveredAt" type="string">Delivery timestamp</ResponseField>
+<ResponseField name="estimatedTimeMin" type="number">Estimated time in minutes</ResponseField>
+<ResponseField name="estimatedCost" type="number">Estimated cost</ResponseField>
+<ResponseField name="notes" type="string">Internal notes</ResponseField>
+<ResponseField name="attachmentUrl" type="string">Delivery receipt URL</ResponseField>
+<ResponseField name="isSigned" type="boolean">Receipt signed status</ResponseField>
+<ResponseField name="dashboardUrl" type="string">Monitoring dashboard URL</ResponseField>
+<ResponseField name="createdAt" type="string">Creation timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">Last update timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL (All work orders)
+curl "http://localhost:3000/api/work-orders" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Assigned to me)
+curl "http://localhost:3000/api/work-orders?assignedToMe=true" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Filter by status)
+curl "http://localhost:3000/api/work-orders?status=EN_PROCESO" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxw123abc",
+    "companyId": "clx456def",
+    "clientId": "clx789ghi",
+    "quotationId": "clxq123abc",
+    "code": "OT-2026-001",
+    "title": "Manufacturing Order - Precision Parts",
+    "description": "Production of 50 custom machined components",
+    "status": "EN_PROCESO",
+    "priority": 2,
+    "plannedDate": "2026-03-15T08:00:00.000Z",
+    "commitmentDate": "2026-03-25T17:00:00.000Z",
+    "startedAt": "2026-03-15T08:30:00.000Z",
+    "finishedAt": null,
+    "deliveredAt": null,
+    "estimatedTimeMin": 2400,
+    "estimatedCost": 15000.00,
+    "notes": "Priority client - ensure quality control",
+    "attachmentUrl": null,
+    "isSigned": false,
+    "dashboardUrl": "https://grafana.example.com/dashboard/ot-001",
+    "createdAt": "2026-03-10T14:00:00.000Z",
+    "updatedAt": "2026-03-15T08:30:00.000Z"
+  }
+]
+```
+
+---
+
+## GET /api/work-orders/:id
+
+Retrieve a specific work order with complete details.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Response
+
+Returns work order with nested relationships: `client`, `assignments`, `operationLogs`, `materialConsumptions`.
+
+---
+
+## POST /api/work-orders
+
+Create a new work order manually.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Unique work order code (e.g., OT-2026-001)
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Work order title
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Detailed description
+</ParamField>
+
+<ParamField body="clientId" type="string" required>
+  Client ID
+</ParamField>
+
+<ParamField body="quotationId" type="string">
+  Related quotation ID (optional)
+</ParamField>
+
+<ParamField body="priority" type="number" required>
+  Priority level (1-5, where 1=high, 5=low)
+</ParamField>
+
+<ParamField body="plannedDate" type="string">
+  Planned start date (ISO 8601)
+</ParamField>
+
+<ParamField body="commitmentDate" type="string">
+  Commitment/deadline date (ISO 8601)
+</ParamField>
+
+<ParamField body="estimatedTimeMin" type="number" required>
+  Estimated time in minutes (min: 0)
+</ParamField>
+
+<ParamField body="estimatedCost" type="number" required>
+  Estimated cost (min: 0)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Internal notes
+</ParamField>
+
+<ParamField body="dashboardUrl" type="string">
+  Monitoring dashboard URL
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/work-orders \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "OT-2026-010",
+    "title": "Emergency Repair Order",
+    "description": "Urgent repair for client equipment",
+    "clientId": "clx789ghi",
+    "priority": 1,
+    "commitmentDate": "2026-03-14T17:00:00.000Z",
+    "estimatedTimeMin": 480,
+    "estimatedCost": 5000.00,
+    "notes": "High priority - coordinate with client"
+  }'
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/from-quotation/:quotationId
+
+Create a work order from an approved quotation.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="quotationId" type="string" required>
+  Quotation ID to convert
+</ParamField>
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Work order code
+</ParamField>
+
+<ParamField body="commitmentDate" type="string">
+  Commitment date (ISO 8601)
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/work-orders/from-quotation/clxq123abc \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "OT-2026-002",
+    "commitmentDate": "2026-04-15T17:00:00.000Z"
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/work-orders/:id
+
+Update work order details.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+All fields from create are optional for updates.
+
+---
+
+## PATCH /api/work-orders/:id/status
+
+Change work order status with automatic timestamp management.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, ADMIN, or OPERARIO
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="status" type="string" required>
+  New status: PENDIENTE, PLANIFICADA, EN_PROCESO, PAUSADA, FINALIZADA, ENTREGADA, CANCELADA, RETRABAJO
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional note about status change
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/work-orders/clxw123abc/status \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "EN_PROCESO"}'
+```
+</CodeGroup>
+
+<Note>
+  Status transitions automatically update `startedAt`, `finishedAt`, and other timestamps based on workflow logic.
+</Note>
+
+---
+
+## POST /api/work-orders/:id/assignments
+
+Assign resources and operators to a work order.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="resourceId" type="string" required>
+  Resource ID (machine or human resource)
+</ParamField>
+
+<ParamField body="userId" type="string">
+  Operator user ID (optional)
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/work-orders/clxw123abc/assignments \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceId": "clxr456def",
+    "userId": "clxu789ghi"
+  }'
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/events
+
+Add an operation log event to track work order progress.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, ADMIN, or OPERARIO
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="eventType" type="string" required>
+  Event type: OT_CREADA, ASIGNADO, INICIO, PAUSA, REANUDACION, FINALIZACION, CAMBIO_ESTADO, MATERIAL_CONSUMIDO, NOTA
+</ParamField>
+
+<ParamField body="resourceId" type="string">
+  Related resource ID
+</ParamField>
+
+<ParamField body="pauseReason" type="string">
+  Reason for pause (required if eventType is PAUSA)
+</ParamField>
+
+<ParamField body="note" type="string">
+  Additional notes
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/work-orders/clxw123abc/events \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "PAUSA",
+    "pauseReason": "Machine maintenance required",
+    "note": "Will resume after maintenance"
+  }'
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/consumptions
+
+Record material consumption for a work order.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, ADMIN, or OPERARIO
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="materialId" type="string" required>
+  Material ID
+</ParamField>
+
+<ParamField body="quantity" type="number" required>
+  Quantity consumed (min: 0.001)
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional notes
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/work-orders/clxw123abc/consumptions \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "materialId": "clxm456def",
+    "quantity": 25.5,
+    "note": "Used for component assembly"
+  }'
+```
+</CodeGroup>
+
+<Note>
+  Material consumption automatically deducts from inventory and captures unit cost snapshot for accurate costing.
+</Note>
+
+---
+
+## POST /api/work-orders/:id/close-delivery
+
+Mark work order as delivered to client.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="deliveryChecklist" type="string">
+  Delivery checklist items
+</ParamField>
+
+<ParamField body="deliveryNote" type="string">
+  Delivery notes
+</ParamField>
+
+---
+
+## POST /api/work-orders/:id/attachment
+
+Add or update delivery receipt attachment.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="attachmentUrl" type="string" required>
+  URL to delivery receipt file
+</ParamField>
+
+---
+
+## DELETE /api/work-orders/:id/attachment
+
+Remove delivery receipt attachment.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+---
+
+## DELETE /api/work-orders/:id
+
+Delete a work order (soft delete).
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+---
+
+## GET /api/work-orders/status
+
+Check work orders service health status.

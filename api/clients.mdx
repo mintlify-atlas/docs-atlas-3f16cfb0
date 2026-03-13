@@ -1,0 +1,346 @@
+---
+title: Clients
+description: Manage commercial clients and customer information
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/clients
+
+Retrieve all clients for the authenticated user's company.
+
+### Query Parameters
+
+<ParamField query="page" type="number" default="1">
+  Page number for pagination
+</ParamField>
+
+<ParamField query="limit" type="number" default="50">
+  Number of items per page
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search clients by name, contact, or email
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  Array of client objects
+  
+  <Expandable title="Client object">
+    <ResponseField name="id" type="string">Client ID</ResponseField>
+    <ResponseField name="companyId" type="string">Company (tenant) ID</ResponseField>
+    <ResponseField name="name" type="string">Client name</ResponseField>
+    <ResponseField name="contact" type="string">Contact person name</ResponseField>
+    <ResponseField name="phone" type="string">Phone number</ResponseField>
+    <ResponseField name="email" type="string">Email address</ResponseField>
+    <ResponseField name="address" type="string">Physical address</ResponseField>
+    <ResponseField name="notes" type="string">Additional notes</ResponseField>
+    <ResponseField name="isActive" type="boolean">Active status</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO 8601 timestamp</ResponseField>
+    <ResponseField name="updatedAt" type="string">ISO 8601 timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/clients \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (with search)
+curl "http://localhost:3000/api/clients?search=acme" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clx789ghi",
+    "companyId": "clx456def",
+    "name": "Acme Corporation",
+    "contact": "Jane Smith",
+    "phone": "+1-555-0123",
+    "email": "jane@acme.com",
+    "address": "123 Business St, City, State 12345",
+    "notes": "Preferred customer - priority service",
+    "isActive": true,
+    "createdAt": "2026-01-15T00:00:00.000Z",
+    "updatedAt": "2026-03-10T14:30:00.000Z"
+  }
+]
+```
+
+---
+
+## GET /api/clients/:id
+
+Retrieve a specific client by ID.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Client ID
+</ParamField>
+
+### Response
+
+Returns a single client object with the same structure as the list endpoint.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/clients/clx789ghi \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clx789ghi",
+  "companyId": "clx456def",
+  "name": "Acme Corporation",
+  "contact": "Jane Smith",
+  "phone": "+1-555-0123",
+  "email": "jane@acme.com",
+  "address": "123 Business St, City, State 12345",
+  "notes": "Preferred customer - priority service",
+  "isActive": true,
+  "createdAt": "2026-01-15T00:00:00.000Z",
+  "updatedAt": "2026-03-10T14:30:00.000Z"
+}
+```
+
+---
+
+## POST /api/clients
+
+Create a new client.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Client name (max 120 characters)
+</ParamField>
+
+<ParamField body="contact" type="string">
+  Contact person name (max 120 characters)
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Phone number (max 50 characters)
+</ParamField>
+
+<ParamField body="email" type="string">
+  Email address (max 120 characters)
+</ParamField>
+
+<ParamField body="address" type="string">
+  Physical address (max 250 characters)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes (max 500 characters)
+</ParamField>
+
+### Response
+
+Returns the created client object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/clients \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Tech Solutions Inc",
+    "contact": "Bob Johnson",
+    "phone": "+1-555-0199",
+    "email": "bob@techsolutions.com",
+    "address": "456 Tech Plaza, Silicon Valley, CA 94000",
+    "notes": "New client - focus on custom manufacturing"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/clients', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Tech Solutions Inc',
+    contact: 'Bob Johnson',
+    phone: '+1-555-0199',
+    email: 'bob@techsolutions.com',
+    address: '456 Tech Plaza, Silicon Valley, CA 94000',
+    notes: 'New client - focus on custom manufacturing'
+  })
+});
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clx890jkl",
+  "companyId": "clx456def",
+  "name": "Tech Solutions Inc",
+  "contact": "Bob Johnson",
+  "phone": "+1-555-0199",
+  "email": "bob@techsolutions.com",
+  "address": "456 Tech Plaza, Silicon Valley, CA 94000",
+  "notes": "New client - focus on custom manufacturing",
+  "isActive": true,
+  "createdAt": "2026-03-13T10:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+---
+
+## PATCH /api/clients/:id
+
+Update an existing client.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Client ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields you want to update.
+
+<ParamField body="name" type="string">
+  Client name (max 120 characters)
+</ParamField>
+
+<ParamField body="contact" type="string">
+  Contact person name (max 120 characters)
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Phone number (max 50 characters)
+</ParamField>
+
+<ParamField body="email" type="string">
+  Email address (max 120 characters)
+</ParamField>
+
+<ParamField body="address" type="string">
+  Physical address (max 250 characters)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes (max 500 characters)
+</ParamField>
+
+### Response
+
+Returns the updated client object.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH http://localhost:3000/api/clients/clx890jkl \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+1-555-0200",
+    "notes": "Updated contact information"
+  }'
+```
+</CodeGroup>
+
+---
+
+## DELETE /api/clients/:id
+
+Delete a client (soft delete - sets `isActive` to false).
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Client ID
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Deletion success status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE http://localhost:3000/api/clients/clx890jkl \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+<Note>
+  Clients are soft-deleted and remain in the database for audit purposes. They will not appear in normal list queries.
+</Note>
+
+---
+
+## GET /api/clients/status
+
+Check clients service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/clients/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```

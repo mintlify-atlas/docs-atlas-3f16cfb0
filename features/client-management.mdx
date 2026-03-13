@@ -1,0 +1,250 @@
+---
+title: 'Client Management'
+description: 'Manage your customer database, contacts, and commercial relationships in DRAIT Mini-MES'
+icon: 'users'
+---
+
+## Overview
+
+The Client Management module serves as your commercial CRM, centralizing all customer information, contact details, and business relationships. It acts as the foundation for quotations and work orders throughout the system.
+
+<CardGroup cols={2}>
+  <Card title="Complete Profiles" icon="address-card">
+    Store company name, contacts, phone, email, billing address, and internal notes
+  </Card>
+  <Card title="Search & Filter" icon="magnifying-glass">
+    Quickly find clients by name, contact person, or email
+  </Card>
+  <Card title="Quotation Linking" icon="link">
+    Direct integration with quotation and work order modules
+  </Card>
+  <Card title="Soft Delete" icon="trash-can">
+    Safe deletion with confirmation dialogs to prevent accidents
+  </Card>
+</CardGroup>
+
+## Key Capabilities
+
+### Client Database
+
+- **Comprehensive Records**: Store all essential business information
+- **Contact Management**: Track primary contacts and communication channels
+- **Internal Notes**: Document payment terms, special conditions, and references
+- **Search Functionality**: Real-time filtering across all client fields
+
+### Data Integrity
+
+- **Validation**: Email format validation and required field enforcement
+- **Unique Identifiers**: System-generated UUIDs for reliable references
+- **Audit Trail**: Automatic tracking of creation and modification dates
+
+## User Workflows
+
+<Steps>
+  <Step title="Create New Client">
+    1. Click **+ Nuevo Cliente** in the page header
+    2. Fill in the required **Nombre / Razon Social** (company name)
+    3. Optionally add contact person, phone, email, address
+    4. Add internal notes about payment terms or special conditions
+    5. Click **Guardar Ficha** to create the client record
+  </Step>
+  
+  <Step title="Search Clients">
+    1. Use the search bar: "🔍 Buscar por nombre, contacto o email..."
+    2. Type any part of the client name, contact, or email
+    3. Results filter in real-time as you type
+    4. View the client count badge showing total records
+  </Step>
+  
+  <Step title="Edit Client Information">
+    1. Locate the client in the table
+    2. Click the **Editar** button in the Actions column
+    3. Modify any fields in the edit dialog
+    4. Click **Guardar Ficha** to save changes
+    5. System validates email format before saving
+  </Step>
+  
+  <Step title="Delete Client">
+    1. Click the **Baja** (delete) button for the client
+    2. Confirm deletion in the warning dialog
+    3. System performs soft delete (flagged but not removed)
+    4. Client will no longer appear in listings
+  </Step>
+</Steps>
+
+## UI Elements and Forms
+
+### Client List Table
+
+The main table displays:
+
+- **Nombre / Razon Social**: Company or legal name
+- **Contacto**: Primary contact person name
+- **Telefono**: Phone number (displayed as badge if present)
+- **Email**: Billing or primary email address
+- **Acciones**: Edit and Delete buttons
+
+### Create/Edit Form Fields
+
+#### Datos Principales (Main Data)
+
+| Field | Type | Required | Validation | Max Length |
+|-------|------|----------|------------|------------|
+| `name` | Text | Yes | Non-empty string | 120 chars |
+| `contact` | Text | No | - | 120 chars |
+
+#### Contacto y Direccion (Contact & Address)
+
+| Field | Type | Required | Validation | Max Length |
+|-------|------|----------|------------|------------|
+| `phone` | Text | No | - | 50 chars |
+| `email` | Email | No | Valid email format | 120 chars |
+| `address` | Text | No | - | 250 chars |
+| `notes` | Textarea | No | - | 500 chars |
+
+### Form Validation Rules
+
+```typescript
+// Backend validation (CreateClientDto)
+@IsString()
+@MaxLength(120)
+name!: string;
+
+@IsOptional()
+@IsEmail()
+@MaxLength(120)
+email?: string;
+```
+
+<Note>
+  Only the **Nombre / Razon Social** field is required. All other fields are optional but recommended for complete records.
+</Note>
+
+## Related Features
+
+### Quotations Module
+
+Clients are linked to quotations through the `clientId` foreign key. When creating a quotation:
+
+1. Select from active client list in dropdown
+2. Client name displays in quotation details
+3. Client relationship preserved in work order conversions
+
+### Work Orders Module
+
+Work orders inherit client information from:
+
+- Direct client selection (manual creation)
+- Quotation conversion (approved quotations)
+- Client data displayed in work order cards and reports
+
+### Reports & Analytics
+
+Client information appears in:
+
+- Dashboard revenue tracking
+- Productivity reports by client
+- Financial summaries and margin analysis
+
+## Role-Based Access
+
+<Tabs>
+  <Tab title="DUENO (Owner)">
+    **Full Access**
+    - Create, edit, and delete clients
+    - View all client records
+    - Access client-related reports
+    - Export client data
+  </Tab>
+  
+  <Tab title="ADMIN">
+    **Full Access**
+    - Same permissions as DUENO
+    - Manage client database
+    - Configure client workflows
+  </Tab>
+  
+  <Tab title="SUPERVISOR">
+    **Read/Write Access**
+    - Create and edit clients
+    - View all client records
+    - Cannot delete clients
+    - Access to quotations and work orders
+  </Tab>
+  
+  <Tab title="OPERARIO (Operator)">
+    **Read-Only Access**
+    - View client names in work orders
+    - Cannot create or edit clients
+    - Limited to assigned work order data
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Consistent Naming">
+    Use the same format for all client names (e.g., "ACME S.A." not "Acme SA" or "acme s.a."). This ensures better search results and professional appearance in documents.
+  </Accordion>
+  
+  <Accordion title="Complete Contact Information">
+    Always fill in email and phone fields. This enables:
+    - Direct communication from quotations
+    - Automated notifications (future feature)
+    - Better customer service tracking
+  </Accordion>
+  
+  <Accordion title="Internal Notes Usage">
+    Use the notes field to document:
+    - Payment terms (e.g., "NET 30")
+    - Special delivery instructions
+    - Preferred communication methods
+    - Account manager assignments
+  </Accordion>
+  
+  <Accordion title="Regular Database Cleanup">
+    Periodically review and merge duplicate client records. Use the search function to identify similar names before creating new clients.
+  </Accordion>
+</AccordionGroup>
+
+## API Integration
+
+### Endpoints
+
+```bash
+# List all clients with optional search
+GET /api/clients?search={query}
+
+# Create new client
+POST /api/clients
+
+# Update client
+PATCH /api/clients/{id}
+
+# Soft delete client
+DELETE /api/clients/{id}
+```
+
+### Example Request
+
+```json
+{
+  "name": "Industria Aceros SA",
+  "contact": "Perez, Juan",
+  "phone": "+54 11 1234 5678",
+  "email": "pagos@acerosind.com",
+  "address": "Calle Industria 123, Parque Industrial, Buenos Aires",
+  "notes": "Condiciones de pago: NET 30. Contactar por email preferentemente."
+}
+```
+
+## Technical Implementation
+
+Source code reference:
+- Frontend: `apps/frontend/src/features/clients/ClientsPage.tsx`
+- Backend DTO: `apps/backend/src/modules/clients/dto/create-client.dto.ts`
+- Database: Prisma Client model with soft delete support
+
+<Warning>
+  Deleting a client does not cascade to quotations or work orders. The system preserves historical data by maintaining client relationships even after deletion.
+</Warning>

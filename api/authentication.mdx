@@ -1,0 +1,270 @@
+---
+title: Authentication
+description: JWT authentication flow for DRAIT Mini-MES API
+---
+
+## Overview
+
+The DRAIT Mini-MES API uses **JWT (JSON Web Token)** authentication to secure endpoints. Users must authenticate to receive a token, which must be included in subsequent API requests.
+
+## Login Flow
+
+### 1. Authenticate User
+
+Send user credentials to obtain a JWT token.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://your-domain.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "your-password"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://your-domain.com/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    password: 'your-password',
+  }),
+});
+
+const data = await response.json();
+const token = data.access_token;
+```
+</CodeGroup>
+
+#### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (minimum 6 characters)
+</ParamField>
+
+#### Response
+
+<ResponseField name="access_token" type="string">
+  JWT access token for authentication
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  User information object
+  
+  <Expandable title="User object">
+    <ResponseField name="id" type="string">
+      User ID
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="fullName" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role: `DUENO`, `SUPERVISOR`, `ADMIN`, or `OPERARIO`
+    </ResponseField>
+    
+    <ResponseField name="companyId" type="string">
+      Company (tenant) ID
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "clx123abc",
+    "email": "user@example.com",
+    "fullName": "John Doe",
+    "role": "SUPERVISOR",
+    "companyId": "clx456def"
+  }
+}
+```
+
+### 2. Use Token in Requests
+
+Include the JWT token in the `Authorization` header for all authenticated requests:
+
+```bash
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Example:**
+```bash
+curl http://your-domain.com/api/clients \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+## JWT Token Structure
+
+The JWT token contains the following claims:
+
+<ResponseField name="sub" type="string">
+  User ID (subject)
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Company (tenant) ID for multi-tenancy
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  User role for authorization
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="fullName" type="string">
+  User's full name
+</ResponseField>
+
+<ResponseField name="iat" type="number">
+  Issued at timestamp
+</ResponseField>
+
+<ResponseField name="exp" type="number">
+  Expiration timestamp
+</ResponseField>
+
+## Token Expiration
+
+JWT tokens have an expiration time set by the backend configuration. When a token expires:
+
+- The API returns **401 Unauthorized**
+- The client must re-authenticate using the login endpoint
+- Store tokens securely and implement token refresh logic in your application
+
+<Note>
+  Token refresh functionality may be implemented in future versions. Currently, users must re-authenticate when tokens expire.
+</Note>
+
+## Rate Limiting
+
+The login endpoint has strict rate limiting to prevent brute-force attacks:
+
+- **5 login attempts per minute** per IP address
+- Exceeding this limit returns **429 Too Many Requests**
+- Wait 60 seconds before retrying
+
+## Get Current User
+
+Retrieve information about the currently authenticated user.
+
+<CodeGroup>
+```bash cURL
+curl http://your-domain.com/api/auth/me \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clx123abc",
+  "email": "user@example.com",
+  "fullName": "John Doe",
+  "role": "SUPERVISOR",
+  "companyId": "clx456def",
+  "isActive": true,
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+## Logout
+
+End the current session (client-side token invalidation).
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://your-domain.com/api/auth/logout \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+<Note>
+  The logout endpoint currently returns a success response. Token invalidation is handled client-side by removing the stored token. Server-side token blacklisting may be added in future versions.
+</Note>
+
+## Authorization & Roles
+
+After authentication, endpoints enforce role-based access control:
+
+### User Roles
+
+<ResponseField name="DUENO" type="role">
+  **Owner** - Full access to all features and settings
+</ResponseField>
+
+<ResponseField name="SUPERVISOR" type="role">
+  **Supervisor** - Manage operations, work orders, and resources
+</ResponseField>
+
+<ResponseField name="ADMIN" type="role">
+  **Administrator** - Technical admin with management capabilities
+</ResponseField>
+
+<ResponseField name="OPERARIO" type="role">
+  **Operator** - Plant operator with limited access to assigned work orders
+</ResponseField>
+
+### Permission Matrix
+
+See individual endpoint documentation for specific role requirements. Generally:
+
+- **DUENO** and **ADMIN**: Full CRUD access to most resources
+- **SUPERVISOR**: Create and manage operational resources
+- **OPERARIO**: Read and update assigned work orders
+
+<Warning>
+  Attempting to access an endpoint without sufficient permissions returns **403 Forbidden**.
+</Warning>
+
+## Error Responses
+
+**401 Unauthorized** - Missing or invalid token
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+**403 Forbidden** - Insufficient permissions
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource"
+}
+```
+
+**429 Too Many Requests** - Rate limit exceeded
+```json
+{
+  "statusCode": 429,
+  "message": "ThrottlerException: Too Many Requests"
+}
+```

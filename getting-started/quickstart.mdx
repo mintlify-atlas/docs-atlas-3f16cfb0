@@ -1,0 +1,354 @@
+---
+title: Quick Start
+description: Get DRAIT Mini-MES up and running in minutes with this complete walkthrough
+---
+
+## Overview
+
+This guide walks you through the complete setup process from cloning the repository to logging in and exploring the system. You'll have a fully functional DRAIT Mini-MES instance running in about 10 minutes.
+
+<Note>
+This quickstart uses the default development configuration. For production deployments, see the [Configuration](/getting-started/configuration) guide.
+</Note>
+
+## Complete Setup Flow
+
+<Steps>
+  <Step title="Clone the repository">
+    Start by cloning the DRAIT Mini-MES repository:
+    
+    <CodeGroup>
+    ```bash bash
+    git clone <repository-url>
+    cd Drait-mini-MES
+    ```
+    
+    ```powershell PowerShell
+    git clone <repository-url>
+    cd Drait-mini-MES
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Configure environment">
+    Copy the example environment file:
+    
+    <CodeGroup>
+    ```bash bash
+    cp .env.example .env
+    ```
+    
+    ```powershell PowerShell
+    Copy-Item .env.example .env
+    ```
+    </CodeGroup>
+    
+    The default `.env` file contains:
+    - Database credentials for PostgreSQL
+    - JWT secret for authentication
+    - Port configurations (80 for HTTP, 5432 for PostgreSQL)
+    - Timezone set to America/Buenos_Aires
+    
+    <Warning>
+    For production use, you MUST change the `JWT_SECRET` and database password before deployment.
+    </Warning>
+  </Step>
+
+  <Step title="Start all services">
+    Build and launch all Docker containers:
+    
+    <CodeGroup>
+    ```bash bash
+    docker compose up --build -d
+    ```
+    
+    ```powershell PowerShell
+    docker compose up --build -d
+    ```
+    </CodeGroup>
+    
+    **Expected output:**
+    ```
+    [+] Building 245.3s (34/34) FINISHED
+    [+] Running 5/5
+     ✔ Network drait-mini-mes_default      Created
+     ✔ Container drait-db                  Started
+     ✔ Container drait-backend             Started
+     ✔ Container drait-frontend            Started
+     ✔ Container drait-nginx               Started
+    ```
+    
+    <Note>
+    The first build takes 5-10 minutes. Subsequent starts are much faster (under 30 seconds).
+    </Note>
+  </Step>
+
+  <Step title="Initialize the database schema">
+    Apply database migrations to create all tables:
+    
+    <CodeGroup>
+    ```bash bash
+    docker compose exec drait-backend npm run prisma:migrate
+    ```
+    
+    ```powershell PowerShell
+    docker compose exec drait-backend npm run prisma:migrate
+    ```
+    </CodeGroup>
+    
+    **Expected output:**
+    ```
+    Environment variables loaded from .env
+    Prisma schema loaded from prisma/schema.prisma
+    Datasource "db": PostgreSQL database "drait_mes"
+    
+    The database is now in sync with the Prisma schema.
+    ✔ Generated Prisma Client
+    ```
+  </Step>
+
+  <Step title="Seed demo data">
+    Load sample data including users, clients, resources, and work orders:
+    
+    <CodeGroup>
+    ```bash bash
+    docker compose exec drait-backend npm run prisma:seed
+    ```
+    
+    ```powershell PowerShell
+    docker compose exec drait-backend npm run prisma:seed
+    ```
+    </CodeGroup>
+    
+    **Expected output:**
+    ```
+    Seeding database...
+    ✅ Company created
+    ✅ Users created (Owner, Supervisor, 3 Operators)
+    ✅ Clients created
+    ✅ Resources created (Machines)
+    ✅ Materials created
+    ✅ Quotations created
+    ✅ Work Orders created
+    ✅ Operation logs created
+    Seeding completed successfully!
+    ```
+    
+    <Note>
+    The seed creates a complete demo environment with:
+    - 5 users across different roles (Owner, Supervisor, Operators)
+    - Sample clients and quotations
+    - Active work orders with assignments
+    - Material inventory and consumption logs
+    - Production machines and resources
+    </Note>
+  </Step>
+
+  <Step title="Access the application">
+    Open your web browser and navigate to:
+    
+    ```
+    http://localhost/
+    ```
+    
+    You should see the DRAIT Mini-MES login page.
+  </Step>
+
+  <Step title="Log in with demo credentials">
+    Use one of the demo accounts to explore the system:
+    
+    **Owner (Full Access):**
+    ```
+    Email: owner@drait.local
+    Password: ChangeMe123!
+    ```
+    
+    **Supervisor:**
+    ```
+    Email: supervisor@drait.local
+    Password: ChangeMe123!
+    ```
+    
+    **Operator:**
+    ```
+    Email: oper1@drait.local
+    Password: ChangeMe123!
+    ```
+    
+    <Note>
+    Each role provides different access levels. See [First Login](/getting-started/first-login) for details on what each role can access.
+    </Note>
+  </Step>
+</Steps>
+
+## Verify Everything Works
+
+After logging in, verify the system is working correctly:
+
+### Check the Dashboard
+
+Log in as **Owner** or **Supervisor** to see:
+- Active work orders count
+- Production KPIs
+- Resource utilization charts
+- Recent operation logs
+
+### Test API Endpoints
+
+Verify the backend API is responding:
+
+<CodeGroup>
+```bash Health Check
+curl http://localhost/api/health
+```
+
+```bash Auth Status
+curl http://localhost/api/auth/status
+```
+
+```bash Get Clients (requires auth)
+curl -H "Authorization: Bearer <your-token>" http://localhost/api/clients
+```
+</CodeGroup>
+
+### Check Container Status
+
+Ensure all containers are running:
+
+<CodeGroup>
+```bash bash
+docker compose ps
+```
+
+```powershell PowerShell
+docker compose ps
+```
+</CodeGroup>
+
+All four services should show status `Up`:
+- `drait-db` (PostgreSQL)
+- `drait-backend` (NestJS API)
+- `drait-frontend` (React + Vite)
+- `drait-nginx` (Reverse proxy)
+
+## Common Tasks
+
+### Stop the Application
+
+<CodeGroup>
+```bash bash
+docker compose down
+```
+
+```powershell PowerShell
+docker compose down
+```
+</CodeGroup>
+
+### Restart Services
+
+<CodeGroup>
+```bash bash
+docker compose restart
+```
+
+```powershell PowerShell
+docker compose restart
+```
+</CodeGroup>
+
+### View Logs
+
+<CodeGroup>
+```bash All Services
+docker compose logs -f
+```
+
+```bash Backend Only
+docker compose logs -f drait-backend
+```
+
+```bash Database Only
+docker compose logs -f drait-db
+```
+</CodeGroup>
+
+### Reset Database
+
+To clear all data and reseed:
+
+<CodeGroup>
+```bash bash
+docker compose down -v
+docker compose up -d
+docker compose exec drait-backend npm run prisma:migrate
+docker compose exec drait-backend npm run prisma:seed
+```
+
+```powershell PowerShell
+docker compose down -v
+docker compose up -d
+docker compose exec drait-backend npm run prisma:migrate
+docker compose exec drait-backend npm run prisma:seed
+```
+</CodeGroup>
+
+<Warning>
+The `-v` flag removes all database volumes and permanently deletes all data.
+</Warning>
+
+## Next Steps
+
+Now that DRAIT Mini-MES is running:
+
+1. **Explore the Interface**: Log in with different roles to see varying access levels
+2. **Review Configuration**: Check the [Configuration](/getting-started/configuration) guide to customize settings
+3. **Understand Roles**: Read about [role-based access](/getting-started/first-login) and permissions
+4. **Learn the Workflow**: Explore how to create clients, quotations, and work orders
+
+## Troubleshooting
+
+### Container Fails to Start
+
+Check logs for the specific container:
+
+```bash
+docker compose logs drait-backend
+```
+
+Common issues:
+- **Port conflicts**: Another service is using port 80 or 5432
+- **Insufficient memory**: Docker needs at least 2GB RAM allocated
+- **Database not ready**: Backend starts before database is healthy (fixed by health checks)
+
+### Database Migration Fails
+
+Ensure the database container is fully started:
+
+```bash
+docker compose exec drait-db pg_isready -U drait
+```
+
+If not ready, wait 30 seconds and try again.
+
+### Seed Command Errors
+
+If seeding fails:
+
+1. Check the backend build completed successfully
+2. Verify migrations ran first: `npm run prisma:migrate`
+3. Check backend logs: `docker compose logs drait-backend`
+
+### Cannot Access http://localhost
+
+Verify:
+1. Nginx container is running: `docker compose ps drait-nginx`
+2. Check if port 80 is available: `netstat -an | grep :80` (Linux/Mac) or `netstat -an | findstr :80` (Windows)
+3. Try accessing with explicit port if changed: `http://localhost:8080`
+
+## Need Help?
+
+For more detailed information:
+- [Installation Guide](/getting-started/installation) - Detailed installation instructions
+- [Configuration Reference](/getting-started/configuration) - All environment variables explained
+- [System Architecture](/system-architecture) - System architecture and components

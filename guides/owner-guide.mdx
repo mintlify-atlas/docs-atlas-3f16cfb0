@@ -1,0 +1,285 @@
+---
+title: 'Owner Guide'
+description: 'Complete guide for workshop owners and administrators with full system access'
+icon: 'crown'
+---
+
+<Note>
+**For:** Workshop owners, managers, and administrators  
+**Access Level:** COMPLETE — All system functions  
+**Responsibility:** Make strategic decisions based on real workshop data
+</Note>
+
+## What the System Gives You
+
+The system transforms your workshop into actionable information:
+
+| Before | Now |
+|--------|-----|
+| "I don't know how many hours that part took" | Exact hours recorded by the operator |
+| "I don't know if we're making money" | Estimated monthly margin on the Dashboard |
+| "I don't know who's working on what" | Real-time dispatch center |
+| "Control is in the supervisor's head" | Everything recorded, auditable, and searchable |
+
+---
+
+## Executive Dashboard
+
+The **Dashboard** is your first screen after login, providing a 360° view of the workshop.
+
+### Period Selector
+
+Use the **3M / 6M / 12M** buttons to filter all data for the selected period. Compare quarters or view yearly trends.
+
+### Production KPIs (Top Row)
+
+<Accordion title="Understanding the KPIs">
+  | KPI | What It Tells You |
+  |-----|-------------------|
+  | **Open Orders** | Total pending work |
+  | **In Process** | Operators working right now |
+  | **Delayed** | ⚠️ Work orders past their commitment date — require attention |
+  | **Closed** | Orders completed in the period |
+  | **Avg Time/WO** | Efficiency per order |
+  | **Active Operators** | Team utilization |
+</Accordion>
+
+### Estimated Financial Summary
+
+<Warning>
+Values are **estimates** based on quotations and registered consumption.
+</Warning>
+
+<Accordion title="Financial Metrics">
+  | Metric | How It's Calculated |
+  |--------|--------------------|
+  | **Estimated Revenue** | Sum of quotation values for closed work orders |
+  | **Estimated Gain** | Work orders where real cost < quoted price |
+  | **Estimated Loss** | Work orders where real cost > quoted price |
+  | **Real Material Cost** | Sum of all registered consumption |
+  | **Net Margin** | Gain - Loss |
+</Accordion>
+
+### Interactive Charts
+
+- **Monthly Trend**: Is the workshop closing more or fewer work orders? Are hours per order increasing?
+- **Current Status** (donut chart): Where are orders accumulated?
+- **Revenue vs Material Cost**: Difference between billing and material expenses
+- **Monthly Margin**: Good months (green) vs months with losses (red)
+
+### Operational Alerts
+
+Automatic alert system for deviations:
+
+<Tip>
+- 🟡 **Warning**: Work order exceeded 80% of estimated time without closing
+- 🔴 **Critical**: Work order significantly exceeded estimated time or cost
+</Tip>
+
+---
+
+## User Management
+
+Access from menu → **"Usuarios"** (Users) — only visible to Owner/Admin.
+
+### Creating a New User
+
+<Steps>
+  <Step title="Open User Creation">
+    Click **"Nuevo Usuario"** (New User) button
+  </Step>
+  <Step title="Fill User Details">
+    Complete: full name, email, role, initial password
+  </Step>
+  <Step title="Create">
+    Click **"Crear Usuario"** — the operator can log in immediately
+  </Step>
+</Steps>
+
+### Available Roles
+
+<Accordion title="Role Descriptions">
+  | Role | Description |
+  |------|-------------|
+  | **Operario** (Operator) | Only sees assigned work orders. No Dashboard or management access |
+  | **Supervisor** | Access to everything except Users and Audit. Can manage work orders and dispatch work |
+  | **Dueño** (Owner) | Full access. Only role that can create/suspend users and view audit history |
+  | **Admin** | Same as Owner. For technical system staff |
+</Accordion>
+
+### Changing a User's Role
+
+From the users table, use the role selector in the actions column. The change is immediate.
+
+### Suspending a User
+
+<Steps>
+  <Step title="Click Suspend">
+    Click **"Suspender"** in the user's row
+  </Step>
+  <Step title="Confirm">
+    Confirm in the dialog
+  </Step>
+  <Step title="Result">
+    The user cannot access the system until you reactivate them
+  </Step>
+</Steps>
+
+---
+
+## Audit History
+
+Access from menu → **"Auditoría"** (Audit) — only visible to Owner/Admin.
+
+Shows **every action** performed in the system with:
+
+- Exact date and time
+- User who performed it and their role
+- Which entity was modified (work order, client, user, etc.)
+- Action type (creation, modification, status change, login, etc.)
+- Value **before** and **after** the change (expandable)
+
+### Available Filters
+
+- **Entity**: View only changes to work orders, clients, users, etc.
+- **Action**: View only creations, or only status changes, etc.
+
+### What Is It For?
+
+<Accordion title="Audit Use Cases">
+  - Know who changed a work order status and when
+  - Verify if an operator registered their work start
+  - Audit quotation price changes
+  - Verify system access (logins)
+</Accordion>
+
+---
+
+## Quotations and Work Orders Control
+
+### Complete Workflow
+
+```
+Client inquires → Create Quotation → Client approves → Convert to WO → 
+Assign operator → Work → Finish → Deliver → Collect payment
+```
+
+### Quotation Management
+
+From **"Presupuestos"** (Quotations):
+
+- Create quotation with client, items, and values
+- View quotation history by client
+- Convert to Work Order when client approves
+
+### Monitoring Work Orders
+
+From **"Órdenes"** (Orders):
+
+- View all work orders with filters by status and client
+- Review event history for each work order (who did what and when)
+- View registered material consumption
+
+---
+
+## Productivity Reports
+
+From **"Reportes"** (Reports) you get:
+
+- **Hours Worked**: By operator for the period
+- **Completed Work Orders**: By operator
+- **Hours Deviation**: Real vs estimated per work order
+- **Most Productive Operator**: Efficiency ranking
+
+---
+
+## Basic System Management
+
+### Clients
+
+Manage your complete portfolio from **"Clientes"** (Clients): name, tax ID, email, phone.
+
+### Resources
+
+Register in **"Recursos"** (Resources):
+
+- People (linked as resources, different from system users)
+- Workshop machines and tools
+
+### Materials
+
+Create the **"Materiales"** (Materials) catalog with name and unit price. Operators select from this catalog when registering consumption.
+
+---
+
+## Management Recommendations
+
+### Week by Week
+
+<Steps>
+  <Step title="Review Dashboard">
+    Check the Dashboard with 3M filter to see trend
+  </Step>
+  <Step title="Check Alerts">
+    Verify alerts — delayed work orders need attention
+  </Step>
+  <Step title="Review Operator Load">
+    If someone is overloaded, redistribute work
+  </Step>
+</Steps>
+
+### Month by Month
+
+<Steps>
+  <Step title="Analyze Monthly Margin">
+    Did it improve compared to the previous month?
+  </Step>
+  <Step title="Review Orders with Estimated Loss">
+    What went wrong?
+  </Step>
+  <Step title="Adjust Material Prices">
+    If costs increased
+  </Step>
+</Steps>
+
+### Before a Business Meeting
+
+<Steps>
+  <Step title="Filter Dashboard">
+    By the meeting period
+  </Step>
+  <Step title="Export Charts">
+    Export or photograph revenue and margin charts
+  </Step>
+  <Step title="Use Productivity Data">
+    To negotiate with the team
+  </Step>
+</Steps>
+
+---
+
+## Frequently Asked Questions
+
+<Accordion title="Are financial values exact?">
+  They are estimates based on quotations and registered consumption. The more complete the records, the more accurate the data.
+</Accordion>
+
+<Accordion title="Can I delete a work order?">
+  Work orders are not deleted, only canceled. This preserves traceability.
+</Accordion>
+
+<Accordion title="What if an operator breaks their phone and can't register?">
+  You can register events yourself from the work order view.
+</Accordion>
+
+<Accordion title="Can I have multiple companies in the system?">
+  Yes, the system supports multiple isolated companies. Each company needs its own deployment or a multi-tenant configuration (consult the developer).
+</Accordion>
+
+---
+
+<Note>
+**Next Steps:**
+- [Supervisor Guide](/guides/supervisor-guide) — Learn about production planning and dispatch
+- [Operator Guide](/guides/operator-guide) — Understand the operator workflow
+</Note>

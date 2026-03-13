@@ -1,0 +1,234 @@
+---
+title: Auth Endpoints
+description: Authentication and session management endpoints
+---
+
+## POST /api/auth/login
+
+Authenticate a user and receive a JWT access token.
+
+<Warning>
+  **Rate Limited:** Maximum 5 attempts per minute per IP address.
+</Warning>
+
+### Request
+
+<ParamField body="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (minimum 6 characters)
+</ParamField>
+
+### Response
+
+<ResponseField name="access_token" type="string">
+  JWT access token
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user information
+  
+  <Expandable title="User properties">
+    <ResponseField name="id" type="string">User ID</ResponseField>
+    <ResponseField name="email" type="string">Email address</ResponseField>
+    <ResponseField name="fullName" type="string">Full name</ResponseField>
+    <ResponseField name="role" type="string">User role</ResponseField>
+    <ResponseField name="companyId" type="string">Company ID</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@company.com",
+    "password": "securepass123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'admin@company.com',
+    password: 'securepass123'
+  })
+});
+
+const data = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbHgxMjNhYmMiLCJjb21wYW55SWQiOiJjbHg0NTZkZWYiLCJyb2xlIjoiQURNSU4iLCJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwiZnVsbE5hbWUiOiJBZG1pbiBVc2VyIiwiaWF0IjoxNzEwMzM2MDAwLCJleHAiOjE3MTAzMzk2MDB9.signature",
+  "user": {
+    "id": "clx123abc",
+    "email": "admin@company.com",
+    "fullName": "Admin User",
+    "role": "ADMIN",
+    "companyId": "clx456def"
+  }
+}
+```
+
+**Error Response (401):**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials"
+}
+```
+
+**Error Response (429 - Rate Limited):**
+```json
+{
+  "statusCode": 429,
+  "message": "ThrottlerException: Too Many Requests"
+}
+```
+
+---
+
+## GET /api/auth/me
+
+Get current authenticated user information.
+
+<Note>
+  **Authentication Required:** Bearer token must be provided.
+</Note>
+
+### Response
+
+<ResponseField name="id" type="string">User ID</ResponseField>
+<ResponseField name="email" type="string">Email address</ResponseField>
+<ResponseField name="fullName" type="string">Full name</ResponseField>
+<ResponseField name="role" type="string">User role (DUENO, SUPERVISOR, ADMIN, OPERARIO)</ResponseField>
+<ResponseField name="companyId" type="string">Company (tenant) ID</ResponseField>
+<ResponseField name="isActive" type="boolean">Account active status</ResponseField>
+<ResponseField name="createdAt" type="string">ISO 8601 timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">ISO 8601 timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/auth/me \
+  -H "Authorization: Bearer <your-token>"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/auth/me', {
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+});
+
+const user = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clx123abc",
+  "email": "admin@company.com",
+  "fullName": "Admin User",
+  "role": "ADMIN",
+  "companyId": "clx456def",
+  "isActive": true,
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+---
+
+## POST /api/auth/logout
+
+End the current user session.
+
+<Note>
+  **Authentication Required:** Bearer token must be provided.
+</Note>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Always returns true
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/api/auth/logout \
+  -H "Authorization: Bearer <your-token>"
+```
+
+```javascript JavaScript
+await fetch('http://localhost:3000/api/auth/logout', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+});
+
+// Remove token from local storage
+localStorage.removeItem('access_token');
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+<Note>
+  The logout endpoint returns a success response for consistency. Token invalidation is handled client-side by removing the stored token.
+</Note>
+
+---
+
+## GET /api/auth/status
+
+Check authentication service health status.
+
+<Note>
+  **Public Endpoint:** No authentication required.
+</Note>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+<ResponseField name="timestamp" type="string">
+  Current server timestamp
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/auth/status
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-13T10:00:00.000Z"
+}
+```

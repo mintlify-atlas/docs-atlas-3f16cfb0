@@ -1,0 +1,408 @@
+---
+title: Audit Logs
+description: System audit trail and activity logging
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token.
+</Note>
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+## Overview
+
+The Audit Logs API provides a complete audit trail of system activities for compliance, security, and operational transparency. All significant actions are automatically logged with detailed before/after snapshots.
+
+---
+
+## GET /api/audit-logs
+
+Retrieve audit log entries with filtering options.
+
+### Query Parameters
+
+<ParamField query="entityType" type="string">
+  Filter by entity type: COMPANY, USER, CLIENT, QUOTATION, WORK_ORDER, RESOURCE, MATERIAL, AUTH
+</ParamField>
+
+<ParamField query="action" type="string">
+  Filter by action: CREATE, UPDATE, DELETE, STATUS_CHANGE, ASSIGN, DELIVERY_CLOSE, PASSWORD_CHANGE, ROLE_CHANGE, SETTINGS_CHANGE, LOGIN
+</ParamField>
+
+<ParamField query="limit" type="number" default="50">
+  Maximum number of records to return (1-200)
+</ParamField>
+
+### Response
+
+Returns an array of audit log entries, ordered by most recent first.
+
+<ResponseField name="id" type="string">Audit log ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="userId" type="string">User who performed the action</ResponseField>
+<ResponseField name="entityType" type="string">Type of entity affected</ResponseField>
+<ResponseField name="entityId" type="string">ID of the affected entity</ResponseField>
+<ResponseField name="action" type="string">Action performed</ResponseField>
+<ResponseField name="before" type="object">Entity state before change (JSON)</ResponseField>
+<ResponseField name="after" type="object">Entity state after change (JSON)</ResponseField>
+<ResponseField name="metadata" type="object">Additional context (JSON)</ResponseField>
+<ResponseField name="createdAt" type="string">Timestamp of action</ResponseField>
+
+<ResponseField name="user" type="object">
+  User information
+  
+  <Expandable title="User details">
+    <ResponseField name="id" type="string">User ID</ResponseField>
+    <ResponseField name="fullName" type="string">User's full name</ResponseField>
+    <ResponseField name="role" type="string">User role</ResponseField>
+    <ResponseField name="email" type="string">User email</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL (Recent logs)
+curl "http://localhost:3000/api/audit-logs?limit=10" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Work order changes)
+curl "http://localhost:3000/api/audit-logs?entityType=WORK_ORDER" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Status changes)
+curl "http://localhost:3000/api/audit-logs?action=STATUS_CHANGE&limit=20" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (User logins)
+curl "http://localhost:3000/api/audit-logs?entityType=AUTH&action=LOGIN" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxa123abc",
+    "companyId": "clx456def",
+    "userId": "clxu123abc",
+    "entityType": "WORK_ORDER",
+    "entityId": "clxw123abc",
+    "action": "STATUS_CHANGE",
+    "before": {
+      "status": "PLANIFICADA"
+    },
+    "after": {
+      "status": "EN_PROCESO"
+    },
+    "metadata": {
+      "note": "Work started on CNC Mill #1",
+      "resourceId": "clxr456def"
+    },
+    "createdAt": "2026-03-15T08:30:00.000Z",
+    "user": {
+      "id": "clxu123abc",
+      "fullName": "Juan Pérez",
+      "role": "OPERARIO",
+      "email": "juan.perez@company.com"
+    }
+  },
+  {
+    "id": "clxa456def",
+    "companyId": "clx456def",
+    "userId": "clxu789ghi",
+    "entityType": "QUOTATION",
+    "entityId": "clxq123abc",
+    "action": "CREATE",
+    "before": null,
+    "after": {
+      "code": "Q-2026-002",
+      "title": "Manufacturing Project Alpha",
+      "status": "BORRADOR",
+      "estimatedCost": 20000.00
+    },
+    "metadata": {
+      "clientId": "clx789ghi",
+      "clientName": "Acme Corporation"
+    },
+    "createdAt": "2026-03-14T10:15:00.000Z",
+    "user": {
+      "id": "clxu789ghi",
+      "fullName": "Admin User",
+      "role": "ADMIN",
+      "email": "admin@company.com"
+    }
+  },
+  {
+    "id": "clxa789ghi",
+    "companyId": "clx456def",
+    "userId": "clxu456def",
+    "entityType": "USER",
+    "entityId": "clxu789ghi",
+    "action": "ROLE_CHANGE",
+    "before": {
+      "role": "OPERARIO"
+    },
+    "after": {
+      "role": "SUPERVISOR"
+    },
+    "metadata": {
+      "reason": "Promotion"
+    },
+    "createdAt": "2026-03-13T14:00:00.000Z",
+    "user": {
+      "id": "clxu456def",
+      "fullName": "Admin User",
+      "role": "ADMIN",
+      "email": "admin@company.com"
+    }
+  }
+]
+```
+
+---
+
+## Entity Types
+
+Audit logs track changes to the following entities:
+
+<ResponseField name="COMPANY" type="entity">
+  Company/tenant settings and configuration
+</ResponseField>
+
+<ResponseField name="USER" type="entity">
+  User accounts, roles, and permissions
+</ResponseField>
+
+<ResponseField name="CLIENT" type="entity">
+  Client records and contact information
+</ResponseField>
+
+<ResponseField name="QUOTATION" type="entity">
+  Quotations and estimates
+</ResponseField>
+
+<ResponseField name="WORK_ORDER" type="entity">
+  Work orders and production activities
+</ResponseField>
+
+<ResponseField name="RESOURCE" type="entity">
+  Production resources (machines and human resources)
+</ResponseField>
+
+<ResponseField name="MATERIAL" type="entity">
+  Materials and inventory items
+</ResponseField>
+
+<ResponseField name="AUTH" type="entity">
+  Authentication and security events
+</ResponseField>
+
+---
+
+## Action Types
+
+The following actions are tracked:
+
+<ResponseField name="CREATE" type="action">
+  New entity created
+</ResponseField>
+
+<ResponseField name="UPDATE" type="action">
+  Entity data modified
+</ResponseField>
+
+<ResponseField name="DELETE" type="action">
+  Entity deleted (soft delete)
+</ResponseField>
+
+<ResponseField name="STATUS_CHANGE" type="action">
+  Status field changed (quotations, work orders)
+</ResponseField>
+
+<ResponseField name="ASSIGN" type="action">
+  Resource or user assigned to work order
+</ResponseField>
+
+<ResponseField name="DELIVERY_CLOSE" type="action">
+  Work order marked as delivered
+</ResponseField>
+
+<ResponseField name="PASSWORD_CHANGE" type="action">
+  User password changed
+</ResponseField>
+
+<ResponseField name="ROLE_CHANGE" type="action">
+  User role modified
+</ResponseField>
+
+<ResponseField name="SETTINGS_CHANGE" type="action">
+  Company settings updated
+</ResponseField>
+
+<ResponseField name="LOGIN" type="action">
+  User authentication event
+</ResponseField>
+
+---
+
+## Use Cases
+
+### Security Monitoring
+
+Monitor authentication and user management activities:
+```javascript
+// Track login activity
+const logins = await fetch(
+  'api/audit-logs?entityType=AUTH&action=LOGIN&limit=50',
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+// Check for password changes
+const passwordChanges = await fetch(
+  'api/audit-logs?action=PASSWORD_CHANGE',
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+```
+
+### Compliance Reporting
+
+Generate audit reports for compliance requirements:
+```javascript
+// Get all changes for specific entity
+const workOrderAudit = await fetch(
+  `api/audit-logs?entityType=WORK_ORDER&limit=200`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+// Export to CSV or generate PDF report
+const report = workOrderAudit.map(log => ({
+  timestamp: log.createdAt,
+  user: log.user.fullName,
+  action: log.action,
+  entity: log.entityId,
+  changes: JSON.stringify({ before: log.before, after: log.after })
+}));
+```
+
+### Change History
+
+View complete change history for specific records:
+```javascript
+// Get all changes to a specific work order
+const workOrderId = 'clxw123abc';
+const history = await fetch(
+  `api/audit-logs?entityType=WORK_ORDER`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json())
+  .then(logs => logs.filter(log => log.entityId === workOrderId));
+
+// Display timeline
+history.forEach(log => {
+  console.log(`${log.createdAt}: ${log.action} by ${log.user.fullName}`);
+  if (log.before && log.after) {
+    console.log('  Changes:', log.before, '->', log.after);
+  }
+});
+```
+
+### User Activity Tracking
+
+Monitor individual user activities:
+```javascript
+// Get all actions by specific user
+const userId = 'clxu789ghi';
+const userActivity = await fetch(
+  'api/audit-logs?limit=100',
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json())
+  .then(logs => logs.filter(log => log.userId === userId));
+
+console.log(`User performed ${userActivity.length} actions`);
+```
+
+### Troubleshooting
+
+Investigate issues by reviewing recent changes:
+```javascript
+// Get recent changes to identify problems
+const recentChanges = await fetch(
+  'api/audit-logs?limit=20',
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+// Find status changes that might indicate issues
+const statusChanges = recentChanges.filter(
+  log => log.action === 'STATUS_CHANGE'
+);
+```
+
+---
+
+## Best Practices
+
+### Query Optimization
+
+1. **Use filters**: Apply entityType and action filters to reduce result set size
+2. **Limit results**: Use the limit parameter (default 50, max 200) for performance
+3. **Pagination**: Implement client-side pagination for large result sets
+4. **Specific queries**: Query specific entity types rather than all logs
+
+### Data Analysis
+
+1. **Regular reviews**: Schedule periodic audit log reviews for security and compliance
+2. **Anomaly detection**: Monitor for unusual patterns (e.g., multiple failed logins, bulk deletions)
+3. **User activity**: Track user productivity and identify training needs
+4. **Change patterns**: Analyze common changes to optimize workflows
+
+### Compliance
+
+1. **Retention**: Audit logs should be retained according to compliance requirements
+2. **Export**: Regularly export audit data for archival and compliance reporting
+3. **Access control**: Restrict audit log access to authorized personnel only
+4. **Immutability**: Audit logs cannot be modified or deleted through the API
+
+### Security
+
+1. **Monitor authentication**: Track LOGIN actions for security incidents
+2. **Password changes**: Review PASSWORD_CHANGE logs for unauthorized changes
+3. **Role changes**: Audit ROLE_CHANGE actions for privilege escalation
+4. **Failed attempts**: While not explicitly in the schema, monitor for suspicious patterns
+
+---
+
+## Audit Log Structure
+
+### Before/After Snapshots
+
+Audit logs capture the state before and after changes:
+
+- **CREATE**: `before` is `null`, `after` contains new entity
+- **UPDATE**: Both `before` and `after` show changed fields only
+- **DELETE**: `before` contains entity, `after` typically shows `isActive: false`
+- **STATUS_CHANGE**: Shows old and new status values
+
+### Metadata
+
+The `metadata` field contains contextual information:
+- Related entity IDs (e.g., clientId for quotations)
+- Reasons or notes for changes
+- IP addresses for authentication events
+- Additional context specific to the action
+
+### Timestamps
+
+All audit logs include:
+- `createdAt`: When the action occurred
+- Automatic ordering by most recent first
+- ISO 8601 format for international compatibility
+
+<Note>
+  Audit logs are immutable and cannot be modified or deleted through the API. They persist indefinitely for complete historical tracking.
+</Note>

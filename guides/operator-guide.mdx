@@ -1,0 +1,213 @@
+---
+title: 'Operator Guide'
+description: 'Simple guide for workshop operators to access work orders, log progress, and record material consumption'
+icon: 'hard-hat'
+---
+
+<Note>
+**For:** Workshop operators  
+**Access:** Only see the "Mi Turno" (My Shift) screen  
+**What Can You Do?** View your assigned orders, register your work, and materials you use
+</Note>
+
+## How to Log In to the System
+
+<Steps>
+  <Step title="Open Browser">
+    Open the browser and enter the address given by your supervisor (e.g., `http://192.168.1.10`)
+  </Step>
+  <Step title="Enter Credentials">
+    Type your **email** and your **password**
+  </Step>
+  <Step title="Log In">
+    Click **"Ingresar"** (Log In)
+  </Step>
+</Steps>
+
+<Tip>
+If you forgot your password, ask the owner or supervisor to change it for you.
+</Tip>
+
+---
+
+## Main Screen — "Mi Turno" (My Shift)
+
+When you log in, you directly see the **"Mi Turno"** screen.
+
+Here you see **only the work orders assigned to you**.
+
+Each order card shows:
+
+- **Code** of the work order (e.g., `OT-0042`)
+- **Title** of the job
+- **Client** it's for
+- **Current Status** (colored badge)
+- **Committed Delivery Date**
+- **Action Buttons**
+
+---
+
+## Work Order Statuses and Colors
+
+| Status | Color | Meaning |
+|--------|-------|----------|
+| PLANIFICADA | Blue | Work order assigned to you, you haven't started yet |
+| PENDIENTE | Gray | Waiting for you to start |
+| EN PROCESO | Green | You are working on it |
+| PAUSADA | Red | You stopped it temporarily |
+| FINALIZADA | Dark Green | Work completed |
+
+---
+
+## Step by Step: How Do I Work on a Work Order?
+
+### ▶ Step 1 — Starting the Work Order
+
+<Steps>
+  <Step title="Find the Work Order">
+    Find the work order in your list
+  </Step>
+  <Step title="Verify Status">
+    Verify the status is **PLANIFICADA** or **PENDIENTE**
+  </Step>
+  <Step title="Click Start">
+    Click the **▶ Iniciar** (Start) button
+  </Step>
+  <Step title="Status Changes">
+    The status changes to **EN PROCESO** (IN PROCESS) green ✅
+  </Step>
+</Steps>
+
+<Warning>
+You can only start one work order at a time. If you already have one in process, the supervisor can reorganize them.
+</Warning>
+
+---
+
+### ⏸ Step 2 — Pausing (If You Need to Interrupt)
+
+If you need to stop temporarily (lunch, lack of material, etc.):
+
+<Steps>
+  <Step title="Find In-Process Work Order">
+    Locate the work order that is **EN PROCESO**
+  </Step>
+  <Step title="Click Pause">
+    Click **⏸ Pausar** (Pause)
+  </Step>
+  <Step title="Status Changes">
+    Status changes to **PAUSADA** (PAUSED) red
+  </Step>
+</Steps>
+
+**To resume** the paused work order:
+
+<Steps>
+  <Step title="Find Paused Work Order">
+    Find it in your list (PAUSADA status in red)
+  </Step>
+  <Step title="Click Resume">
+    Click **▶ Reanudar** (Resume)
+  </Step>
+  <Step title="Status Returns">
+    Status returns to **EN PROCESO**
+  </Step>
+</Steps>
+
+---
+
+### ✅ Step 3 — Finishing the Work Order
+
+When you finish the work:
+
+<Steps>
+  <Step title="Click Finish">
+    Click **✅ Finalizar** (Finish)
+  </Step>
+  <Step title="Confirmation Window">
+    A confirmation window opens
+  </Step>
+  <Step title="Add Closing Note (Optional)">
+    You can add an optional **closing note** (e.g., "Finished according to specification")
+  </Step>
+  <Step title="Confirm">
+    Confirm
+  </Step>
+</Steps>
+
+<Note>
+The system records the exact finish time. Make sure to finish when the work is **really** done.
+</Note>
+
+---
+
+## Registering Consumed Materials
+
+While the work order is **EN PROCESO**, you can register which materials you used:
+
+<Steps>
+  <Step title="Find Register Consumption Section">
+    Find the **"Registrar consumo"** (Register Consumption) section inside the work order
+  </Step>
+  <Step title="Search for Material">
+    Search for the material in the search box (e.g., "varilla", "pintura")
+  </Step>
+  <Step title="Enter Quantity">
+    Enter the **quantity** used
+  </Step>
+  <Step title="Register">
+    Click **"Registrar"** (Register)
+  </Step>
+</Steps>
+
+<Tip>
+This is very important because it allows the supervisor and owner to know the real cost of the work.
+</Tip>
+
+---
+
+## Adding Notes or Comments
+
+You can leave notes about the work order at any time:
+
+<Steps>
+  <Step title="Find Comment Field">
+    Find the **"Agregar novedad / comentario"** (Add Update / Comment) field
+  </Step>
+  <Step title="Write Note">
+    Write your note (e.g., "Material X was missing, informed supervisor")
+  </Step>
+  <Step title="Add">
+    Click **"Agregar"** (Add)
+  </Step>
+</Steps>
+
+These notes are recorded with your name and the exact date/time.
+
+---
+
+## Frequently Asked Questions
+
+<Accordion title="Why don't any work orders appear in my list?">
+  The supervisor hasn't assigned you work yet. Consult them.
+</Accordion>
+
+<Accordion title="Can I see other operators' work orders?">
+  No. You only see your assigned orders.
+</Accordion>
+
+<Accordion title="What if I made a mistake registering consumption?">
+  Notify the supervisor so they can correct it from their screen.
+</Accordion>
+
+<Accordion title="Does the session close automatically?">
+  Yes, after 8 hours you must log in again.
+</Accordion>
+
+---
+
+<Note>
+**Related Guides:**
+- [Supervisor Guide](/guides/supervisor-guide) — Learn about the supervisor's role
+- [Owner Guide](/guides/owner-guide) — Understand full system capabilities
+</Note>

@@ -1,0 +1,430 @@
+---
+title: Reports
+description: Analytics and reporting endpoints for business intelligence
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token.
+</Note>
+
+## Overview
+
+The Reports API provides analytics and aggregated data for business intelligence, dashboard displays, and productivity analysis.
+
+---
+
+## GET /api/reports/dashboard
+
+Retrieve key metrics and statistics for the main dashboard.
+
+### Response
+
+Returns aggregated statistics and key performance indicators.
+
+<ResponseField name="workOrders" type="object">
+  Work order statistics
+  
+  <Expandable title="Work order metrics">
+    <ResponseField name="total" type="number">Total work orders</ResponseField>
+    <ResponseField name="pending" type="number">Pending work orders</ResponseField>
+    <ResponseField name="inProgress" type="number">In progress work orders</ResponseField>
+    <ResponseField name="completed" type="number">Completed work orders</ResponseField>
+    <ResponseField name="delivered" type="number">Delivered work orders</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="quotations" type="object">
+  Quotation statistics
+  
+  <Expandable title="Quotation metrics">
+    <ResponseField name="total" type="number">Total quotations</ResponseField>
+    <ResponseField name="draft" type="number">Draft quotations</ResponseField>
+    <ResponseField name="sent" type="number">Sent quotations</ResponseField>
+    <ResponseField name="approved" type="number">Approved quotations</ResponseField>
+    <ResponseField name="rejected" type="number">Rejected quotations</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="resources" type="object">
+  Resource utilization
+  
+  <Expandable title="Resource metrics">
+    <ResponseField name="total" type="number">Total resources</ResponseField>
+    <ResponseField name="available" type="number">Available resources</ResponseField>
+    <ResponseField name="busy" type="number">Busy resources</ResponseField>
+    <ResponseField name="maintenance" type="number">In maintenance</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="clients" type="object">
+  Client statistics
+  
+  <Expandable title="Client metrics">
+    <ResponseField name="total" type="number">Total active clients</ResponseField>
+    <ResponseField name="withActiveOrders" type="number">Clients with active orders</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/reports/dashboard \
+  -H "Authorization: Bearer <token>"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/reports/dashboard', {
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+});
+
+const dashboard = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "workOrders": {
+    "total": 45,
+    "pending": 8,
+    "inProgress": 12,
+    "completed": 20,
+    "delivered": 18
+  },
+  "quotations": {
+    "total": 67,
+    "draft": 15,
+    "sent": 22,
+    "approved": 25,
+    "rejected": 5
+  },
+  "resources": {
+    "total": 18,
+    "available": 10,
+    "busy": 6,
+    "maintenance": 2
+  },
+  "clients": {
+    "total": 32,
+    "withActiveOrders": 14
+  },
+  "recentActivity": [
+    {
+      "type": "work_order",
+      "id": "clxw123abc",
+      "title": "Manufacturing Order - Precision Parts",
+      "timestamp": "2026-03-15T08:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## GET /api/reports/productivity
+
+Generate productivity and performance reports with flexible filtering.
+
+### Query Parameters
+
+<ParamField query="from" type="string">
+  Start date for report period (ISO 8601 format)
+</ParamField>
+
+<ParamField query="to" type="string">
+  End date for report period (ISO 8601 format)
+</ParamField>
+
+<ParamField query="clientId" type="string">
+  Filter by specific client
+</ParamField>
+
+<ParamField query="operatorId" type="string">
+  Filter by specific operator (user ID)
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by work order status
+</ParamField>
+
+### Response
+
+Returns detailed productivity metrics and statistics.
+
+<ResponseField name="period" type="object">
+  Report period information
+  
+  <Expandable title="Period details">
+    <ResponseField name="from" type="string">Start date</ResponseField>
+    <ResponseField name="to" type="string">End date</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="summary" type="object">
+  Summary statistics
+  
+  <Expandable title="Summary metrics">
+    <ResponseField name="totalOrders" type="number">Total work orders</ResponseField>
+    <ResponseField name="completedOrders" type="number">Completed orders</ResponseField>
+    <ResponseField name="totalEstimatedHours" type="number">Total estimated hours</ResponseField>
+    <ResponseField name="totalActualHours" type="number">Total actual hours worked</ResponseField>
+    <ResponseField name="efficiency" type="number">Efficiency percentage</ResponseField>
+    <ResponseField name="onTimeDelivery" type="number">On-time delivery rate</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="byClient" type="array">
+  Breakdown by client
+  
+  <Expandable title="Client breakdown">
+    <ResponseField name="clientId" type="string">Client ID</ResponseField>
+    <ResponseField name="clientName" type="string">Client name</ResponseField>
+    <ResponseField name="orderCount" type="number">Number of orders</ResponseField>
+    <ResponseField name="totalCost" type="number">Total cost</ResponseField>
+    <ResponseField name="completionRate" type="number">Completion rate percentage</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="byOperator" type="array">
+  Breakdown by operator
+  
+  <Expandable title="Operator breakdown">
+    <ResponseField name="userId" type="string">User ID</ResponseField>
+    <ResponseField name="fullName" type="string">Operator name</ResponseField>
+    <ResponseField name="orderCount" type="number">Orders worked</ResponseField>
+    <ResponseField name="hoursWorked" type="number">Total hours</ResponseField>
+    <ResponseField name="efficiency" type="number">Efficiency percentage</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="byStatus" type="object">
+  Count by work order status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL (Date range)
+curl "http://localhost:3000/api/reports/productivity?from=2026-03-01&to=2026-03-31" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (By client)
+curl "http://localhost:3000/api/reports/productivity?clientId=clx789ghi&from=2026-01-01&to=2026-03-31" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (By operator)
+curl "http://localhost:3000/api/reports/productivity?operatorId=clxu789ghi&from=2026-03-01" \
+  -H "Authorization: Bearer <token>"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  from: '2026-03-01',
+  to: '2026-03-31',
+  clientId: 'clx789ghi'
+});
+
+const response = await fetch(
+  `http://localhost:3000/api/reports/productivity?${params}`,
+  {
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  }
+);
+
+const report = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "period": {
+    "from": "2026-03-01T00:00:00.000Z",
+    "to": "2026-03-31T23:59:59.999Z"
+  },
+  "summary": {
+    "totalOrders": 28,
+    "completedOrders": 22,
+    "totalEstimatedHours": 1120,
+    "totalActualHours": 1085,
+    "efficiency": 96.87,
+    "onTimeDelivery": 85.71
+  },
+  "byClient": [
+    {
+      "clientId": "clx789ghi",
+      "clientName": "Acme Corporation",
+      "orderCount": 12,
+      "totalCost": 85000.00,
+      "completionRate": 91.67
+    },
+    {
+      "clientId": "clx890jkl",
+      "clientName": "Tech Solutions Inc",
+      "orderCount": 8,
+      "totalCost": 52000.00,
+      "completionRate": 87.50
+    }
+  ],
+  "byOperator": [
+    {
+      "userId": "clxu789ghi",
+      "fullName": "Juan Pérez",
+      "orderCount": 15,
+      "hoursWorked": 620,
+      "efficiency": 98.5
+    },
+    {
+      "userId": "clxu456def",
+      "fullName": "María García",
+      "orderCount": 10,
+      "hoursWorked": 465,
+      "efficiency": 94.2
+    }
+  ],
+  "byStatus": {
+    "PENDIENTE": 2,
+    "EN_PROCESO": 4,
+    "FINALIZADA": 10,
+    "ENTREGADA": 12
+  }
+}
+```
+
+---
+
+## GET /api/reports/status
+
+Check reports service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/reports/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## Use Cases
+
+### Executive Dashboard
+
+Display real-time KPIs on executive dashboard:
+```javascript
+const dashboard = await fetch('api/reports/dashboard', {
+  headers: { Authorization: 'Bearer ' + token }
+}).then(r => r.json());
+
+// Display work order progress
+const completionRate = 
+  (dashboard.workOrders.completed / dashboard.workOrders.total) * 100;
+
+console.log(`Work Order Completion: ${completionRate.toFixed(1)}%`);
+console.log(`Resource Utilization: ${dashboard.resources.busy}/${dashboard.resources.total}`);
+```
+
+### Monthly Performance Report
+
+Generate monthly productivity reports:
+```javascript
+const firstDay = new Date(2026, 2, 1); // March 1
+const lastDay = new Date(2026, 2, 31); // March 31
+
+const report = await fetch(
+  `api/reports/productivity?from=${firstDay.toISOString()}&to=${lastDay.toISOString()}`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+console.log(`Efficiency: ${report.summary.efficiency}%`);
+console.log(`On-time Delivery: ${report.summary.onTimeDelivery}%`);
+```
+
+### Client Performance Analysis
+
+Analyze performance for specific clients:
+```javascript
+const clientReport = await fetch(
+  `api/reports/productivity?clientId=${clientId}&from=2026-01-01`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+const clientData = clientReport.byClient[0];
+console.log(`Orders: ${clientData.orderCount}`);
+console.log(`Total Revenue: $${clientData.totalCost}`);
+console.log(`Completion Rate: ${clientData.completionRate}%`);
+```
+
+### Operator Performance Tracking
+
+Track individual operator productivity:
+```javascript
+const operatorReport = await fetch(
+  `api/reports/productivity?operatorId=${operatorId}`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+const operator = operatorReport.byOperator[0];
+console.log(`${operator.fullName}:`);
+console.log(`  Orders Completed: ${operator.orderCount}`);
+console.log(`  Hours Worked: ${operator.hoursWorked}`);
+console.log(`  Efficiency: ${operator.efficiency}%`);
+```
+
+---
+
+## Best Practices
+
+1. **Use date ranges**: Always specify date ranges for large datasets to optimize query performance
+2. **Cache dashboard data**: Dashboard metrics can be cached client-side for 1-5 minutes to reduce API calls
+3. **Schedule reports**: Generate productivity reports on a schedule (daily, weekly, monthly) for consistent tracking
+4. **Compare periods**: Fetch reports for multiple periods to identify trends
+5. **Export data**: Use report data for Excel/CSV exports or custom visualizations
+6. **Monitor KPIs**: Set alerts based on efficiency, on-time delivery, or other critical metrics
+
+---
+
+## Metrics Definitions
+
+### Efficiency
+
+Calculated as: `(Estimated Hours / Actual Hours) * 100`
+- Values > 100% indicate work completed faster than estimated
+- Values < 100% indicate work took longer than estimated
+
+### On-Time Delivery Rate
+
+Percentage of orders delivered by or before commitment date:
+`(Orders Delivered On Time / Total Delivered Orders) * 100`
+
+### Completion Rate
+
+Percentage of orders in completed or delivered status:
+`(Completed + Delivered Orders / Total Orders) * 100`
+
+### Resource Utilization
+
+Percentage of resources actively working:
+`(Busy Resources / Total Active Resources) * 100`

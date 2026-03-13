@@ -1,0 +1,650 @@
+---
+title: Monitoring
+description: Health checks, logging, and performance monitoring for DRAIT Mini-MES
+---
+
+## Overview
+
+Monitoring DRAIT Mini-MES involves tracking container health, application status, database performance, and system logs. This guide covers built-in health checks and monitoring strategies.
+
+## Health Check Endpoints
+
+### Backend API Health
+
+The backend exposes a health check endpoint for monitoring application status.
+
+**Endpoint**: `/api/auth/status`
+
+<CodeGroup>
+```bash Using curl
+curl http://localhost/api/auth/status
+
+# Expected response:
+# {"status":"ok"}
+# HTTP 200
+```
+
+```bash Using httpie
+http GET http://localhost/api/auth/status
+```
+
+```bash With Authentication
+# If endpoint requires auth (check implementation)
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://localhost/api/auth/status
+```
+</CodeGroup>
+
+**Docker Health Check** (see `docker-compose.yml:39`):
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/auth/status', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+```
+
+**Behavior**:
+- Checks every 15 seconds
+- Allows 30 seconds for initial startup
+- Fails after 5 consecutive failures
+- Marks container as "unhealthy" if failing
+
+### Database Health
+
+PostgreSQL health is monitored via `pg_isready`.
+
+<CodeGroup>
+```bash Using Docker Exec
+docker compose exec drait-db pg_isready -U drait -d drait_mes
+
+# Expected output:
+# /var/run/postgresql:5432 - accepting connections
+```
+
+```bash Using psql
+# Test connection and query
+docker compose exec drait-db psql -U drait -d drait_mes -c "SELECT 1;"
+
+# Expected:
+#  ?column? 
+# ----------
+#         1
+```
+
+```bash From Host
+# If database port is exposed
+pg_isready -h localhost -p 5432 -U drait -d drait_mes
+```
+</CodeGroup>
+
+**Docker Health Check** (see `docker-compose.yml:15`):
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+```
+
+**Behavior**:
+- Checks every 10 seconds
+- Backend waits for database to be "healthy" before starting
+- Fails after 5 consecutive failures
+
+## Container Status Monitoring
+
+### Check Container Health
+
+<CodeGroup>
+```bash All Services
+# View container status with health
+docker compose ps
+
+# Example output:
+NAME              STATUS                    PORTS
+drait-backend     Up 5 minutes (healthy)    
+drait-db          Up 5 minutes (healthy)    0.0.0.0:5432->5432/tcp
+drait-frontend    Up 5 minutes              
+drait-nginx       Up 5 minutes              0.0.0.0:80->80/tcp
+```
+
+```bash Individual Service
+# Check specific service
+docker compose ps drait-backend
+
+# Detailed inspection
+docker inspect drait-backend | jq '.[0].State.Health'
+```
+
+```bash Health Status Only
+# Get health status for all services
+docker compose ps --format json | jq -r '.[] | "\(.Service): \(.Health)"'
+```
+</CodeGroup>
+
+### Container Resource Usage
+
+<CodeGroup>
+```bash Real-time Stats
+# View CPU, memory, network, I/O
+docker stats
+
+# Filter to DRAIT containers
+docker stats drait-backend drait-db drait-nginx drait-frontend
+```
+
+```bash One-time Snapshot
+# Single snapshot (no streaming)
+docker stats --no-stream
+```
+
+```bash Formatted Output
+# Custom format
+docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+```
+</CodeGroup>
+
+**Metrics Explained**:
+
+| Metric | Description | Healthy Range |
+|--------|-------------|---------------|
+| CPU % | CPU usage percentage | < 80% sustained |
+| MEM USAGE / LIMIT | Memory consumption | < 80% of limit |
+| NET I/O | Network bytes sent/received | Depends on load |
+| BLOCK I/O | Disk read/write | Depends on operations |
+
+## Log Management
+
+### Viewing Logs
+
+<CodeGroup>
+```bash All Services
+# Follow all logs
+docker compose logs -f
+
+# Last 100 lines
+docker compose logs --tail=100
+
+# With timestamps
+docker compose logs -f -t
+```
+
+```bash Backend Logs
+# Follow backend logs
+docker compose logs -f drait-backend
+
+# Search for errors
+docker compose logs drait-backend | grep -i error
+
+# Last 50 lines
+docker compose logs --tail=50 drait-backend
+```
+
+```bash Database Logs
+# Follow database logs
+docker compose logs -f drait-db
+
+# Check connections
+docker compose logs drait-db | grep "connection"
+
+# Check authentication issues
+docker compose logs drait-db | grep "authentication"
+```
+
+```bash Nginx Access Logs
+# View all nginx logs
+docker compose logs -f drait-nginx
+
+# Filter by status code
+docker compose logs drait-nginx | grep " 500 "
+docker compose logs drait-nginx | grep " 404 "
+
+# View recent requests
+docker compose logs --tail=20 drait-nginx
+```
+</CodeGroup>
+
+### Log Locations
+
+Logs are stored inside containers:
+
+| Service | Log Location | Access Method |
+|---------|--------------|---------------|
+| Backend | stdout/stderr | `docker compose logs drait-backend` |
+| Database | `/var/log/postgresql/` | `docker compose logs drait-db` |
+| Nginx | `/var/log/nginx/` | `docker compose logs drait-nginx` |
+| Frontend | Build logs only | `docker compose logs drait-frontend` |
+
+### Persistent Logging
+
+For production, configure persistent logging:
+
+<CodeGroup>
+```yaml docker-compose.yml
+# Add to services
+services:
+  drait-backend:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+```yaml Syslog
+# Forward to syslog
+services:
+  drait-backend:
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://192.168.0.100:514"
+        tag: "drait-backend"
+```
+
+```yaml External Service
+# Send to Loki, Splunk, etc.
+services:
+  drait-backend:
+    logging:
+      driver: "loki"
+      options:
+        loki-url: "http://loki:3100/loki/api/v1/push"
+```
+</CodeGroup>
+
+## Common Health Indicators
+
+### Healthy System
+
+✅ **All green indicators**:
+
+```bash
+# Container health
+$ docker compose ps
+NAME              STATUS
+drait-backend     Up (healthy)
+drait-db          Up (healthy)
+drait-frontend    Up
+drait-nginx       Up
+
+# Backend responds
+$ curl http://localhost/api/auth/status
+{"status":"ok"}
+
+# Database accepts connections
+$ docker compose exec drait-db pg_isready -U drait -d drait_mes
+/var/run/postgresql:5432 - accepting connections
+
+# No error logs
+$ docker compose logs --tail=20 | grep -i error
+# (empty or no critical errors)
+```
+
+### Warning Signs
+
+⚠️ **Monitor these conditions**:
+
+<CodeGroup>
+```bash High CPU Usage
+# Backend CPU > 80%
+$ docker stats --no-stream drait-backend
+CONTAINER       CPU %     MEM USAGE
+drait-backend   85.32%    512MiB / 1GiB
+
+# Investigate:
+- Check for long-running queries
+- Review recent API requests
+- Look for infinite loops in logs
+```
+
+```bash Memory Leaks
+# Memory usage climbing over time
+$ docker stats --no-stream drait-backend
+CONTAINER       MEM USAGE
+drait-backend   890MiB / 1GiB  # 89% and rising
+
+# Investigate:
+- Check for memory leaks
+- Review large dataset queries
+- Consider increasing memory limits
+```
+
+```bash Slow Response Times
+# Health check timing out
+$ time curl http://localhost/api/auth/status
+# > 5 seconds
+
+# Investigate:
+- Check database performance
+- Review slow query logs
+- Monitor container resources
+```
+
+```bash Database Connection Pool Exhaustion
+# Logs show connection errors
+$ docker compose logs drait-backend | grep "connection"
+Error: remaining connection slots are reserved
+
+# Investigate:
+- Check connection pool settings
+- Look for unclosed connections
+- Review concurrent request count
+```
+</CodeGroup>
+
+### Critical Issues
+
+🔴 **Immediate attention required**:
+
+<Accordion title="Container keeps restarting">
+  **Symptoms**:
+  ```bash
+  $ docker compose ps
+  drait-backend   Restarting (1) 3 seconds ago
+  ```
+  
+  **Investigation**:
+  ```bash
+  # Check exit code and logs
+  docker compose logs --tail=50 drait-backend
+  
+  # Check for:
+  - Database connection failures
+  - Missing environment variables
+  - Port conflicts
+  - Application crashes
+  ```
+  
+  See [Troubleshooting](/deployment/troubleshooting#container-wont-start).
+</Accordion>
+
+<Accordion title="Database unhealthy">
+  **Symptoms**:
+  ```bash
+  $ docker compose ps
+  drait-db   Up (unhealthy)
+  ```
+  
+  **Investigation**:
+  ```bash
+  # Check health check logs
+  docker inspect drait-db | jq '.[0].State.Health.Log'
+  
+  # Try manual connection
+  docker compose exec drait-db psql -U drait -d drait_mes
+  
+  # Check disk space
+  docker compose exec drait-db df -h
+  ```
+  
+  See [Troubleshooting](/deployment/troubleshooting#database-connection-errors).
+</Accordion>
+
+<Accordion title="Nginx returning 502 Bad Gateway">
+  **Symptoms**:
+  ```bash
+  $ curl http://localhost/api/auth/status
+  <html><body>502 Bad Gateway</body></html>
+  ```
+  
+  **Investigation**:
+  ```bash
+  # Check backend is running
+  docker compose ps drait-backend
+  
+  # Check backend logs
+  docker compose logs --tail=50 drait-backend
+  
+  # Check nginx logs
+  docker compose logs --tail=20 drait-nginx
+  
+  # Test backend directly (from nginx container)
+  docker compose exec drait-nginx wget -O- http://drait-backend:3000/api/auth/status
+  ```
+  
+  See [Troubleshooting](/deployment/troubleshooting#nginx-502-errors).
+</Accordion>
+
+## Performance Monitoring
+
+### Database Performance
+
+<CodeGroup>
+```sql Active Connections
+-- View active database connections
+SELECT 
+  count(*) as connection_count,
+  state,
+  usename
+FROM pg_stat_activity
+WHERE datname = 'drait_mes'
+GROUP BY state, usename;
+```
+
+```sql Slow Queries
+-- Find queries running > 1 second
+SELECT 
+  pid,
+  now() - query_start as duration,
+  usename,
+  state,
+  LEFT(query, 60) as query
+FROM pg_stat_activity
+WHERE state != 'idle' 
+  AND now() - query_start > interval '1 second'
+ORDER BY duration DESC;
+```
+
+```sql Database Statistics
+-- Overall database stats
+SELECT 
+  numbackends as connections,
+  xact_commit as commits,
+  xact_rollback as rollbacks,
+  blks_read as blocks_read,
+  blks_hit as blocks_hit,
+  round(100.0 * blks_hit / NULLIF(blks_hit + blks_read, 0), 2) as cache_hit_ratio
+FROM pg_stat_database
+WHERE datname = 'drait_mes';
+```
+
+```sql Table Statistics
+-- Most accessed tables
+SELECT 
+  schemaname,
+  tablename,
+  seq_scan,
+  seq_tup_read,
+  idx_scan,
+  idx_tup_fetch,
+  n_tup_ins as inserts,
+  n_tup_upd as updates,
+  n_tup_del as deletes
+FROM pg_stat_user_tables
+ORDER BY seq_scan + idx_scan DESC
+LIMIT 10;
+```
+</CodeGroup>
+
+### Application Metrics
+
+<CodeGroup>
+```bash Response Time
+# Measure API response time
+time curl -w "\nHTTP: %{http_code}\nTime: %{time_total}s\n" \
+     -o /dev/null -s http://localhost/api/auth/status
+```
+
+```bash Concurrent Requests
+# Stress test with Apache Bench
+ab -n 1000 -c 10 http://localhost/api/auth/status
+
+# Or with wrk
+wrk -t4 -c100 -d30s http://localhost/api/auth/status
+```
+
+```bash Error Rate
+# Count HTTP errors in last 100 requests
+docker compose logs --tail=100 drait-nginx | \
+  grep -E '" [45][0-9]{2} ' | wc -l
+```
+</CodeGroup>
+
+## Monitoring Tools Integration
+
+### Prometheus + Grafana (Recommended)
+
+Add monitoring stack to `docker-compose.yml`:
+
+```yaml docker-compose.yml
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+  
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+
+volumes:
+  prometheus_data:
+  grafana_data:
+```
+
+### Simple Uptime Monitoring
+
+Create a health check script:
+
+```bash check_health.sh
+#!/bin/bash
+
+# Check backend
+if curl -sf http://localhost/api/auth/status > /dev/null; then
+  echo "✅ Backend: Healthy"
+else
+  echo "❌ Backend: Down"
+  # Send alert (email, Slack, etc.)
+fi
+
+# Check database
+if docker compose exec -T drait-db pg_isready -U drait -d drait_mes > /dev/null 2>&1; then
+  echo "✅ Database: Healthy"
+else
+  echo "❌ Database: Down"
+  # Send alert
+fi
+
+# Check container health
+UNHEALTHY=$(docker compose ps --format json | jq -r '.[] | select(.Health == "unhealthy") | .Service')
+if [ -z "$UNHEALTHY" ]; then
+  echo "✅ Containers: All healthy"
+else
+  echo "❌ Unhealthy containers: $UNHEALTHY"
+  # Send alert
+fi
+```
+
+**Run via cron**:
+
+```bash
+# Add to crontab (every 5 minutes)
+*/5 * * * * /path/to/check_health.sh >> /var/log/drait_health.log 2>&1
+```
+
+## Alerting
+
+### Email Alerts on Container Failure
+
+Use Docker event monitoring:
+
+```bash monitor_events.sh
+#!/bin/bash
+
+docker events --filter 'event=die' --filter 'event=health_status: unhealthy' | \
+while read event; do
+  echo "Alert: $event"
+  # Send email
+  echo "$event" | mail -s "DRAIT Container Alert" admin@yourdomain.com
+done
+```
+
+### Slack Webhook Integration
+
+```bash slack_alert.sh
+#!/bin/bash
+
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+MESSAGE="$1"
+
+curl -X POST -H 'Content-type: application/json' \
+  --data "{\"text\":\"🚨 DRAIT Alert: $MESSAGE\"}" \
+  "$SLACK_WEBHOOK"
+```
+
+Use in health checks:
+
+```bash
+if ! curl -sf http://localhost/api/auth/status > /dev/null; then
+  ./slack_alert.sh "Backend health check failed!"
+fi
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Set up automated health checks">
+    Use cron or systemd timers to run health checks every 5-10 minutes.
+  </Step>
+  
+  <Step title="Configure log rotation">
+    Prevent disk space issues:
+    ```yaml docker-compose.yml
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ```
+  </Step>
+  
+  <Step title="Monitor resource usage trends">
+    Track CPU, memory, and disk over time to predict capacity needs.
+  </Step>
+  
+  <Step title="Set up alerting">
+    Configure alerts for:
+    - Container health failures
+    - High resource usage (>80%)
+    - Slow response times (>5s)
+    - Error rate spikes
+  </Step>
+  
+  <Step title="Regular performance reviews">
+    Weekly/monthly reviews of:
+    - Slow query logs
+    - Error rates
+    - Resource utilization
+    - User-reported issues
+  </Step>
+</Steps>
+
+## Next Steps
+
+- Implement [Backup & Restore](/deployment/backup-restore) procedures
+- Review [Troubleshooting](/deployment/troubleshooting) for common issues
+- Configure [Environment Variables](/deployment/environment-variables) for monitoring settings
+- Set up [Database Setup](/deployment/database-setup) performance optimizations

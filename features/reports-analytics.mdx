@@ -1,0 +1,615 @@
+---
+title: 'Reports & Analytics'
+description: 'Executive dashboards, productivity analysis, and financial KPIs for data-driven manufacturing decisions'
+icon: 'chart-mixed'
+---
+
+## Overview
+
+DRAIT Mini-MES provides comprehensive reporting and analytics across two main interfaces: the **Executive Dashboard** for high-level KPIs and the **Productivity Reports** for detailed operational analysis. Both leverage real production data for actionable insights.
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Dashboard" icon="gauge">
+    Live KPIs with 3/6/12-month trends and Recharts visualizations
+  </Card>
+  <Card title="Deviation Alerts" icon="triangle-exclamation">
+    Automatic alerts when time or cost exceeds configurable thresholds
+  </Card>
+  <Card title="Financial Tracking" icon="sack-dollar">
+    Revenue, costs, margins, and gain/loss by period and client
+  </Card>
+  <Card title="Operator Metrics" icon="user-chart">
+    Workload distribution, productivity, and hours by operator
+  </Card>
+</CardGroup>
+
+## Executive Dashboard
+
+The main dashboard (`DashboardPage.tsx`) provides executive-level visibility:
+
+### Dashboard KPIs
+
+<Tabs>
+  <Tab title="Production Status">
+    **Snapshot Metrics**
+    
+    | KPI | Description | Visual |
+    |-----|-------------|--------|
+    | Órdenes abiertas | Total active orders (not finished/delivered/cancelled) | 📂 Blue card |
+    | En proceso ahora | Orders with status EN_PROCESO | ⚙️ Cyan card |
+    | Atrasadas | Orders past commitment date | ⏰ Red card |
+    | Cerradas (period) | Completed orders in selected timeframe | ✅ Green card |
+    | Tiempo prom./OT | Average hours per closed order | ⏱ Orange card |
+    | Operarios activos | Count of operators with EN_PROCESO assignments | 👷 Purple card |
+    
+    **Data Source:**
+    ```typescript
+    interface DashboardKPIs {
+      openCount: number;           // Not FINALIZADA/ENTREGADA/CANCELADA
+      inProcessCount: number;      // Status = EN_PROCESO
+      finishedCount: number;       // Status = FINALIZADA
+      delayedCount: number;        // Past commitmentDate
+      hoursToday: number;          // Total hours logged today
+      operatorsActive: number;     // Distinct users on active WOs
+      estimatedVsReal: {           // Budget comparison
+        estimatedTotal: number;
+        realTotal: number;
+      };
+      alerts: {                    // Deviation alerts
+        total: number;
+        warning: number;
+        critical: number;
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Financial Summary">
+    **Estimated Financial Metrics** (Period: 3M, 6M, or 12M)
+    
+    | Metric | Calculation | Color |
+    |--------|-------------|-------|
+    | Facturación estimada | Sum of `estimatedCost` for closed orders | Default |
+    | Ganancia estimada | Sum where real cost < estimated cost | Green |
+    | Pérdida estimada | Sum where real cost > estimated cost | Red |
+    | Costo real materiales | Sum of all material consumptions | Default |
+    | Margen neto estimado | Ganancia - Pérdida | Green/Red |
+    
+    **Formula:**
+    ```typescript
+    for each closed WorkOrder {
+      estimatedCost = wo.estimatedCost;
+      realCost = sum(wo.materialConsumptions.map(
+        c => c.quantity * c.unitCostSnapshot
+      ));
+      
+      if (realCost < estimatedCost) {
+        gain += (estimatedCost - realCost);
+      } else {
+        loss += (realCost - estimatedCost);
+      }
+    }
+    
+    margin = gain - loss;
+    ```
+    
+    <Note>
+      Financial metrics are **estimates** based on quotation values and material costs only. Labor, overhead, and other expenses are not included in the current version.
+    </Note>
+  </Tab>
+  
+  <Tab title="Period Selector">
+    **Time Range Filter**
+    
+    Toggle between 3 analysis periods:
+    - **3M**: Last 3 months
+    - **6M**: Last 6 months  
+    - **12M**: Last 12 months (default)
+    
+    **Affects:**
+    - Financial summary totals
+    - All chart data (trends, margins)
+    - Monthly breakdowns
+    - Closed order counts
+    
+    **Implementation:**
+    ```typescript
+    const [period, setPeriod] = useState<3 | 6 | 12>(12);
+    
+    const query = useQuery({
+      queryKey: ['dashboard', period],
+      queryFn: async () => {
+        return await api.get('/reports/dashboard', {
+          params: { months: period }
+        });
+      }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Dashboard Visualizations
+
+Using Recharts library for interactive charts:
+
+#### 1. Production Trend (Line Chart)
+
+**Data:** Monthly time series
+
+- **X-Axis:** Month labels (e.g., "Ene", "Feb", "Mar")
+- **Y-Axis:** Dual metrics
+- **Line 1 (Orange):** OTs cerradas (count)
+- **Line 2 (Blue):** Horas prom./OT (decimal)
+
+**Purpose:** Track production volume and efficiency trends
+
+**Example Data:**
+```json
+[
+  { "mes": "Oct", "OTs cerradas": 12, "Horas prom./OT": 8.5 },
+  { "mes": "Nov", "OTs cerradas": 15, "Horas prom./OT": 7.2 },
+  { "mes": "Dic", "OTs cerradas": 18, "Horas prom./OT": 8.1 }
+]
+```
+
+#### 2. Order Status Distribution (Pie Chart)
+
+**Data:** Current status breakdown
+
+- **Inner Radius:** 55px (donut chart)
+- **Outer Radius:** 85px
+- **Labels:** Status name + percentage
+- **Colors:** Distinct palette (blue, orange, purple, green, red, yellow, gray)
+
+**Purpose:** Visualize work order state distribution
+
+**Example:**
+- Pendiente: 5 (15%)
+- En proceso: 8 (24%)
+- Finalizada: 18 (55%)
+- Entregada: 2 (6%)
+
+#### 3. Revenue vs. Material Cost (Bar Chart)
+
+**Data:** Monthly comparison
+
+- **Bar 1 (Blue):** Ingreso estimado (estimated revenue)
+- **Bar 2 (Orange):** Costo materiales (actual material cost)
+- **Y-Axis:** Currency (formatted as $Xk)
+
+**Purpose:** Track gross margin trends
+
+#### 4. Monthly Margin Analysis (Stacked Bar Chart)
+
+**Data:** Gain and loss by month
+
+- **Bar 1 (Green):** Ganancia (orders under budget)
+- **Bar 2 (Red):** Pérdida (orders over budget)
+- **Y-Axis:** Currency (formatted as $Xk)
+
+**Purpose:** Identify profitability patterns and problem periods
+
+### Operational Alerts
+
+**Alertas operativas** panel shows deviation warnings:
+
+#### Alert Criteria
+
+**Time Deviation:**
+```typescript
+const timeDeviationPct = (
+  (workedHours - estimatedHours) / estimatedHours
+) * 100;
+
+if (timeDeviationPct > criticalTimeThreshold) {
+  severity = 'critical';  // 🔴 Red
+} else if (timeDeviationPct > warningTimeThreshold) {
+  severity = 'warning';   // 🟡 Yellow
+}
+```
+
+**Cost Deviation:**
+```typescript
+const costDeviationPct = (
+  (realMaterialCost - estimatedCost) / estimatedCost
+) * 100;
+
+if (costDeviationPct > criticalCostThreshold) {
+  severity = 'critical';
+} else if (costDeviationPct > warningCostThreshold) {
+  severity = 'warning';
+}
+```
+
+**Default Thresholds (Configurable):**
+- Warning Time: +20%
+- Critical Time: +40%
+- Warning Cost: +15%
+- Critical Cost: +30%
+
+#### Alert Display
+
+**Header Badge:**
+- 🔴 {N} crítica(s) - Red
+- 🟡 {N} aviso(s) - Yellow
+
+**Alert List Item:**
+```
+[🔴/🟡] OT-2026-045 · Industria Aceros SA
+         Tiempo excedido: +45% · Costo extra: +18%
+         [CRÍTICO/AVISO]
+```
+
+**No Alerts State:**
+```
+✅ Todas las órdenes dentro de los umbrales normales.
+```
+
+### Operator Workload
+
+**Carga por operario** section:
+
+- Horizontal bar chart
+- Shows active work order count per operator
+- Only displays operators with assignments
+- Bars scaled to max workload
+
+**Example:**
+```
+Rodriguez, Carlos  [████████████████] 5 OT
+González, María   [██████████      ] 3 OT
+Martínez, Luis    [███████           ] 2 OT
+```
+
+### Recent Orders Table
+
+**Últimas órdenes ingresadas:**
+
+- Displays 10-20 most recent work orders
+- Columns: Código, Título, Cliente, Estado
+- Status badges color-coded
+- Sortable by creation date
+
+## Productivity Reports
+
+The Productivity page (`ReportsPage.tsx`) provides detailed operational analysis:
+
+### Report Structure
+
+<Steps>
+  <Step title="Threshold Configuration Display">
+    Shows current alert thresholds:
+    - Warning: Time >X%, Cost >Y%
+    - Critical: Time >X%, Cost >Y%
+    
+    Configured in Company Settings (Admin only)
+  </Step>
+  
+  <Step title="Summary KPIs">
+    Four metric cards:
+    1. **Órdenes Evaluadas**: Total orders analyzed
+    2. **Costo Materiales Real**: Actual consumption total
+    3. **Costo Estimado Producción**: Original estimates
+    4. **Alertas de Desvío Activas**: Current deviation count
+  </Step>
+  
+  <Step title="Deviation Analysis Table">
+    Detailed breakdown by work order:
+    - Sortable columns
+    - Search and filter
+    - Color-coded deviations
+    - Alert severity badges
+  </Step>
+  
+  <Step title="Side Panels">
+    Supporting information:
+    - Órdenes Atrasadas (past commitment date)
+    - Distribución de Horas (by operator)
+    - Umbrales de Tolerancia (threshold reference)
+  </Step>
+</Steps>
+
+### Deviation Analysis Table
+
+**Columns:**
+
+| Column | Data | Sort | Color Coding |
+|--------|------|------|-------------|
+| OT | Work order code | ✅ | - |
+| Cliente | Client name | ✅ | - |
+| H. Est. | Estimated hours | ✅ | - |
+| H. Real | Actual worked hours | ✅ | - |
+| Δ Tiempo | Time deviation % | ✅ | Red/Yellow/Green |
+| Δ Costo | Cost deviation % | ✅ | Red/Yellow/Green |
+| Estado | Alert severity badge | - | Critical/Warning/OK |
+
+**Filters:**
+- Search by OT code or client name
+- Status dropdown (PENDIENTE, EN_PROCESO, FINALIZADA, etc.)
+- Click headers to sort ascending/descending
+
+**Deviation Display:**
+
+```typescript
+// Time deviation color
+if (timeDeviationPct > criticalTimeThreshold) {
+  color = 'var(--destructive)';  // Red
+} else if (timeDeviationPct > warningTimeThreshold) {
+  color = 'var(--accent-orange)'; // Yellow
+} else {
+  color = 'var(--success)';       // Green
+}
+
+// Display format
+"+45.2%"  // Over estimate (red)
+"-10.5%" // Under estimate (green)
+"+0.0%"  // Exactly on estimate
+```
+
+### Delayed Orders Panel
+
+**Órdenes Atrasadas** shows:
+
+- Work orders past commitment date
+- Not in FINALIZADA/ENTREGADA/CANCELADA status
+- Sorted by days overdue
+
+**Display:**
+```
+OT-2026-032 - Cliente ABC
+Vencimiento: 08/03/2026 [🔴 Atrasada]
+```
+
+**Empty State:**
+```
+🎉 Las entregas están al día.
+```
+
+### Hours Distribution Panel
+
+**Distribución de Horas** by operator:
+
+- Total hours worked per operator
+- Across all work orders
+- In selected reporting period
+
+**Display:**
+```
+Rodriguez, Carlos    [42.5 h]
+González, María      [38.0 h]
+Martínez, Luis       [25.5 h]
+```
+
+## Using Recharts Visualizations
+
+All charts use the Recharts library:
+
+### Line Chart Example
+
+```tsx
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+<ResponsiveContainer width="100%" height={220}>
+  <LineChart data={lineData}>
+    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: 'var(--ink-soft)' }} />
+    <YAxis tick={{ fontSize: 11, fill: 'var(--ink-soft)' }} />
+    <Tooltip content={<CustomTooltip />} />
+    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+    <Line type="monotone" dataKey="OTs cerradas" stroke="#fb923c" strokeWidth={2} />
+    <Line type="monotone" dataKey="Horas prom./OT" stroke="#38bdf8" strokeWidth={2} />
+  </LineChart>
+</ResponsiveContainer>
+```
+
+### Custom Tooltip
+
+```tsx
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="custom-tooltip">
+      <p className="label">{label}</p>
+      {payload.map((entry, i) => (
+        <p key={i} style={{ color: entry.color }}>
+          {entry.name}: <strong>{entry.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
+};
+```
+
+### Pie Chart Example
+
+```tsx
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
+
+const COLORS = ['#38bdf8', '#fb923c', '#a78bfa', '#34d399', '#f87171'];
+
+<PieChart>
+  <Pie
+    data={pieData}
+    cx="50%"
+    cy="50%"
+    innerRadius={55}
+    outerRadius={85}
+    paddingAngle={3}
+    dataKey="value"
+    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+  >
+    {pieData.map((entry, index) => (
+      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+    ))}
+  </Pie>
+  <Tooltip />
+</PieChart>
+```
+
+## Role-Based Report Access
+
+| Report Type | DUENO | ADMIN | SUPERVISOR | OPERARIO |
+|-------------|-------|-------|------------|----------|
+| Executive Dashboard | ✅ | ✅ | ✅ | ❌ |
+| Productivity Reports | ✅ | ✅ | ✅ | ❌ |
+| Financial Metrics | ✅ | ✅ | ⚠️ Limited | ❌ |
+| Operator Metrics | ✅ | ✅ | ✅ | 👁️ Own only |
+| Export Data | ✅ | ✅ | ✅ | ❌ |
+| Configure Thresholds | ✅ | ✅ | ❌ | ❌ |
+
+<Warning>
+  Operators do not have access to reporting interfaces. They see only their assigned work orders and personal consumption history in the operator terminal.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Regular Review Cadence">
+    Establish review schedules:
+    
+    **Daily (Supervisor):**
+    - Check delayed orders
+    - Review active alerts
+    - Monitor operator workload
+    
+    **Weekly (Management):**
+    - Analyze deviation trends
+    - Identify recurring issues
+    - Adjust resource allocation
+    
+    **Monthly (Executive):**
+    - Review financial margins
+    - Compare periods (3M vs 6M vs 12M)
+    - Set improvement goals
+  </Accordion>
+  
+  <Accordion title="Threshold Tuning">
+    Adjust alert thresholds based on your operation:
+    
+    **Tight tolerances** (high precision work):
+    - Warning: +10% time, +10% cost
+    - Critical: +20% time, +15% cost
+    
+    **Standard tolerances** (default):
+    - Warning: +20% time, +15% cost
+    - Critical: +40% time, +30% cost
+    
+    **Loose tolerances** (prototype/R&D):
+    - Warning: +50% time, +30% cost
+    - Critical: +100% time, +50% cost
+    
+    Configure in: Resources > Company Settings
+  </Accordion>
+  
+  <Accordion title="Data Quality">
+    Ensure accurate reporting:
+    
+    - Train operators on timely event logging
+    - Verify material consumption records daily
+    - Audit outlier deviations for data errors
+    - Correct mistakes promptly (affects future reports)
+    - Document any manual adjustments
+  </Accordion>
+  
+  <Accordion title="Action on Insights">
+    Use reports to drive improvement:
+    
+    **High time deviation:**
+    - Review work complexity
+    - Provide additional training
+    - Update estimates for future
+    - Check equipment issues
+    
+    **High cost deviation:**
+    - Verify material pricing
+    - Check for waste/scrap
+    - Review process efficiency
+    - Renegotiate supplier contracts
+    
+    **Frequent delays:**
+    - Improve planning accuracy
+    - Add buffer to commitments
+    - Identify bottlenecks
+    - Increase capacity in constraints
+  </Accordion>
+</AccordionGroup>
+
+## Technical Implementation
+
+**Source Code:**
+
+- Dashboard: `apps/frontend/src/features/dashboard/DashboardPage.tsx`
+- Productivity: `apps/frontend/src/features/reports/ReportsPage.tsx`
+- Backend aggregation: `apps/backend/src/modules/reports`
+- Charts: Recharts library (v2.x)
+
+**API Endpoints:**
+
+```bash
+# Dashboard
+GET /api/reports/dashboard?months={3|6|12}
+
+# Response
+{
+  "kpis": { ... },
+  "managementAnnual": { ... },
+  "monthlyManagement": [ ... ],
+  "statusBreakdown": [ ... ],
+  "deviationAlerts": [ ... ],
+  "recentOrders": [ ... ],
+  "delayedOrders": [ ... ],
+  "operatorLoad": [ ... ]
+}
+
+# Productivity
+GET /api/reports/productivity
+
+# Response
+{
+  "thresholds": { ... },
+  "alerts": [ ... ],
+  "hoursByOrder": [ ... ],
+  "hoursByOperator": [ ... ],
+  "overdueOrders": [ ... ],
+  "totals": { ... }
+}
+```
+
+**Data Aggregation:**
+
+Reports are calculated server-side for performance:
+
+```typescript
+// Pseudo-code for dashboard aggregation
+function calculateDashboard(months: number) {
+  const startDate = subMonths(new Date(), months);
+  
+  const orders = await getWorkOrders({
+    where: {
+      createdAt: { gte: startDate }
+    },
+    include: {
+      client: true,
+      materialConsumptions: true,
+      operationLogs: true
+    }
+  });
+  
+  // Calculate KPIs, group by month, etc.
+  return aggregatedData;
+}
+```
+
+<Note>
+  Report generation may take 1-3 seconds for large datasets (>1000 orders). Consider caching strategies or scheduled pre-calculation for production deployments.
+</Note>
+
+## Related Features
+
+- **Work Orders**: Source of production data
+- **Materials**: Cost tracking via consumption
+- **Resources**: Operator productivity metrics
+- **Company Settings**: Alert threshold configuration
+- **Audit Logs**: Full traceability for compliance
+
+For custom report requirements, consider exporting data via API and using external BI tools like Power BI, Tableau, or Metabase.

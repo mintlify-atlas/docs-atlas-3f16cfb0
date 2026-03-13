@@ -1,0 +1,390 @@
+---
+title: Resources
+description: Manage production resources (machines and human resources)
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token with appropriate role permissions.
+</Note>
+
+## GET /api/resources
+
+Retrieve all resources for the authenticated user's company.
+
+### Query Parameters
+
+<ParamField query="type" type="string">
+  Filter by resource type: `HUMANO` (human) or `MAQUINA` (machine)
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status: `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO`, `FUERA_DE_LINEA`
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by name or sector
+</ParamField>
+
+### Response
+
+Returns an array of resource objects.
+
+<ResponseField name="id" type="string">Resource ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="type" type="string">Resource type: HUMANO or MAQUINA</ResponseField>
+<ResponseField name="name" type="string">Resource name</ResponseField>
+<ResponseField name="sector" type="string">Department/sector</ResponseField>
+<ResponseField name="status" type="string">Operational status</ResponseField>
+<ResponseField name="notes" type="string">Additional notes</ResponseField>
+<ResponseField name="isActive" type="boolean">Active status</ResponseField>
+<ResponseField name="createdAt" type="string">Creation timestamp</ResponseField>
+<ResponseField name="updatedAt" type="string">Last update timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL (All resources)
+curl http://localhost:3000/api/resources \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Machines only)
+curl "http://localhost:3000/api/resources?type=MAQUINA" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Available resources)
+curl "http://localhost:3000/api/resources?status=DISPONIBLE" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxr123abc",
+    "companyId": "clx456def",
+    "type": "MAQUINA",
+    "name": "CNC Mill #1",
+    "sector": "Machining Department",
+    "status": "DISPONIBLE",
+    "notes": "3-axis CNC milling machine - high precision",
+    "isActive": true,
+    "createdAt": "2026-01-10T00:00:00.000Z",
+    "updatedAt": "2026-03-13T10:00:00.000Z"
+  },
+  {
+    "id": "clxr456def",
+    "companyId": "clx456def",
+    "type": "HUMANO",
+    "name": "Juan Pérez (Operator)",
+    "sector": "Assembly",
+    "status": "OCUPADO",
+    "notes": "Certified welder and assembly specialist",
+    "isActive": true,
+    "createdAt": "2026-01-15T00:00:00.000Z",
+    "updatedAt": "2026-03-15T08:30:00.000Z"
+  }
+]
+```
+
+---
+
+## POST /api/resources
+
+Create a new resource.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Request Body
+
+<ParamField body="type" type="string" required>
+  Resource type: `HUMANO` or `MAQUINA`
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Resource name (max 120 characters)
+</ParamField>
+
+<ParamField body="sector" type="string">
+  Department or sector (max 120 characters)
+</ParamField>
+
+<ParamField body="status" type="string">
+  Initial status: `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO`, `FUERA_DE_LINEA` (default: DISPONIBLE)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes (max 500 characters)
+</ParamField>
+
+### Response
+
+Returns the created resource object.
+
+### Example
+
+<CodeGroup>
+```bash cURL (Machine)
+curl -X POST http://localhost:3000/api/resources \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "MAQUINA",
+    "name": "Laser Cutter #2",
+    "sector": "Cutting Department",
+    "status": "DISPONIBLE",
+    "notes": "CO2 laser cutter - 150W"
+  }'
+```
+
+```bash cURL (Human Resource)
+curl -X POST http://localhost:3000/api/resources \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "HUMANO",
+    "name": "María García (Technician)",
+    "sector": "Quality Control",
+    "notes": "QC specialist with 10 years experience"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/api/resources', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'MAQUINA',
+    name: 'Welding Station #3',
+    sector: 'Welding Department',
+    status: 'DISPONIBLE',
+    notes: 'TIG/MIG welding capable'
+  })
+});
+
+const resource = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxr789ghi",
+  "companyId": "clx456def",
+  "type": "MAQUINA",
+  "name": "Laser Cutter #2",
+  "sector": "Cutting Department",
+  "status": "DISPONIBLE",
+  "notes": "CO2 laser cutter - 150W",
+  "isActive": true,
+  "createdAt": "2026-03-13T10:00:00.000Z",
+  "updatedAt": "2026-03-13T10:00:00.000Z"
+}
+```
+
+---
+
+## PATCH /api/resources/:id
+
+Update an existing resource.
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Resource ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields you want to update.
+
+<ParamField body="type" type="string">
+  Resource type: `HUMANO` or `MAQUINA`
+</ParamField>
+
+<ParamField body="name" type="string">
+  Resource name (max 120 characters)
+</ParamField>
+
+<ParamField body="sector" type="string">
+  Department or sector (max 120 characters)
+</ParamField>
+
+<ParamField body="status" type="string">
+  Status: `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO`, `FUERA_DE_LINEA`
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes (max 500 characters)
+</ParamField>
+
+### Response
+
+Returns the updated resource object.
+
+### Example
+
+<CodeGroup>
+```bash cURL (Update status)
+curl -X PATCH http://localhost:3000/api/resources/clxr123abc \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "MANTENIMIENTO", "notes": "Scheduled maintenance - back online 2026-03-20"}'
+```
+
+```bash cURL (Update name and sector)
+curl -X PATCH http://localhost:3000/api/resources/clxr456def \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Juan Pérez (Senior Operator)",
+    "sector": "Advanced Assembly"
+  }'
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "id": "clxr123abc",
+  "companyId": "clx456def",
+  "type": "MAQUINA",
+  "name": "CNC Mill #1",
+  "sector": "Machining Department",
+  "status": "MANTENIMIENTO",
+  "notes": "Scheduled maintenance - back online 2026-03-20",
+  "isActive": true,
+  "createdAt": "2026-01-10T00:00:00.000Z",
+  "updatedAt": "2026-03-13T10:30:00.000Z"
+}
+```
+
+---
+
+## DELETE /api/resources/:id
+
+Delete a resource (soft delete - sets `isActive` to false).
+
+<Warning>
+  **Required Roles:** DUENO, SUPERVISOR, or ADMIN
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Resource ID
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Deletion success status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE http://localhost:3000/api/resources/clxr789ghi \
+  -H "Authorization: Bearer <token>"
+```
+
+```javascript JavaScript
+await fetch('http://localhost:3000/api/resources/clxr789ghi', {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+});
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+<Note>
+  Resources are soft-deleted and remain in the database for audit and historical purposes. They will not appear in normal list queries but maintain referential integrity with work order assignments.
+</Note>
+
+---
+
+## GET /api/resources/status
+
+Check resources service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/resources/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## Resource Types
+
+### HUMANO (Human Resource)
+
+Represents human operators, technicians, or workers:
+- Use descriptive names like "Juan Pérez (Operator)" or "María García (Technician)"
+- Can be assigned to work orders via user assignments
+- Track availability and workload
+
+### MAQUINA (Machine Resource)
+
+Represents equipment, machines, or tools:
+- Use clear identifiers like "CNC Mill #1" or "Laser Cutter #2"
+- Track operational status and maintenance schedules
+- Monitor utilization and capacity
+
+## Resource Status
+
+<ResponseField name="DISPONIBLE" type="status">
+  **Available** - Resource is ready for assignment
+</ResponseField>
+
+<ResponseField name="OCUPADO" type="status">
+  **Busy** - Resource is currently assigned to active work
+</ResponseField>
+
+<ResponseField name="MANTENIMIENTO" type="status">
+  **Maintenance** - Resource is undergoing maintenance or repair
+</ResponseField>
+
+<ResponseField name="FUERA_DE_LINEA" type="status">
+  **Offline** - Resource is offline or temporarily unavailable
+</ResponseField>
+
+<Tip>
+  Resource status can be automatically updated when assigned to or unassigned from work orders, or manually updated via the PATCH endpoint.
+</Tip>

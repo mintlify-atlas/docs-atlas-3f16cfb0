@@ -1,0 +1,453 @@
+---
+title: 'Audit Trail'
+description: 'Complete audit logging and compliance tracking'
+icon: 'clipboard-list'
+---
+
+## Overview
+
+DRAIT Mini-MES maintains a comprehensive audit trail that logs all critical operations across the system. Every create, update, delete, and state change is recorded with full before/after snapshots.
+
+## Audit Data Model
+
+The `AuditLog` model captures all auditable events:
+
+```prisma
+model AuditLog {
+  id         String          @id @default(cuid())
+  companyId  String
+  userId     String?         // Can be null for system events
+  entityType AuditEntityType
+  entityId   String
+  action     AuditActionType
+  before     Json?           // State before change
+  after      Json?           // State after change
+  metadata   Json?           // Additional context
+  createdAt  DateTime        @default(now())
+  company    Company         @relation(...)
+  user       User?           @relation(...)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, action])
+}
+```
+
+## Entity Types
+
+The `AuditEntityType` enum defines what can be audited:
+
+```typescript
+enum AuditEntityType {
+  COMPANY          // Company/tenant settings
+  USER             // User account changes
+  CLIENT           // Customer data
+  QUOTATION        // Quotations and estimates
+  WORK_ORDER       // Work orders
+  RESOURCE         // Resources (machines, personnel)
+  MATERIAL         // Materials and inventory
+  AUTH             // Authentication events
+}
+```
+
+<Info>
+Defined in `apps/backend/prisma/schema.prisma:75-84`
+</Info>
+
+## Action Types
+
+The `AuditActionType` enum defines what happened:
+
+```typescript
+enum AuditActionType {
+  CREATE              // Entity created
+  UPDATE              // Entity updated
+  DELETE              // Entity deleted
+  STATUS_CHANGE       // Status field changed
+  ASSIGN              // Resource/user assignment
+  DELIVERY_CLOSE      // Work order delivered
+  PASSWORD_CHANGE     // User password reset
+  ROLE_CHANGE         // User role modified
+  SETTINGS_CHANGE     // Company settings updated
+  LOGIN               // User logged in
+}
+```
+
+<Info>
+Defined in `apps/backend/prisma/schema.prisma:87-98`
+</Info>
+
+## What Gets Audited
+
+### User Actions
+
+| Operation | Entity Type | Action Type | Before/After |
+|-----------|-------------|-------------|-------------|
+| User created | `USER` | `CREATE` | `after` = new user data |
+| User updated | `USER` | `UPDATE` | `before` + `after` = changed fields |
+| User activated/deactivated | `USER` | `UPDATE` | `before` + `after` = `isActive` |
+| Role changed | `USER` | `ROLE_CHANGE` | `before` + `after` = role |
+| Password reset | `USER` | `PASSWORD_CHANGE` | `metadata` only |
+| Login | `AUTH` | `LOGIN` | `metadata` = email |
+
+### Work Order Actions
+
+- Creation (`CREATE`)
+- Status transitions (`STATUS_CHANGE`)
+- Resource assignments (`ASSIGN`)
+- Delivery and closure (`DELIVERY_CLOSE`)
+
+### Material & Inventory
+
+- Material creation and updates
+- Stock adjustments
+- Consumption tracking
+
+### Client & Quotation
+
+- Client data changes
+- Quotation status changes
+- Approval/rejection events
+
+## Creating Audit Logs
+
+### AuditService Interface
+
+The `AuditService` provides a simple logging interface:
+
+```typescript
+interface CreateAuditEntryInput {
+  companyId: string;           // Required: tenant isolation
+  userId?: string | null;      // Optional: who performed the action
+  entityType: AuditEntityType; // What type of entity
+  entityId: string;            // Which specific entity
+  action: AuditActionType;     // What happened
+  before?: Prisma.InputJsonValue;  // State before (optional)
+  after?: Prisma.InputJsonValue;   // State after (optional)
+  metadata?: Prisma.InputJsonValue; // Extra context (optional)
+}
+```
+
+### Basic Usage
+
+From `apps/backend/src/modules/audit/audit.service.ts`:
+
+```typescript
+@Injectable()
+export class AuditService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async log(input: CreateAuditEntryInput) {
+    return this.prisma.auditLog.create({
+      data: {
+        companyId: input.companyId,
+        userId: input.userId ?? null,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        action: input.action,
+        before: input.before,
+        after: input.after,
+        metadata: input.metadata
+      }
+    });
+  }
+}
+```
+
+### Example: User Creation
+
+From `apps/backend/src/modules/users/users.service.ts:74-81`:
+
+```typescript
+const created = await this.prisma.user.create({
+  data: { companyId, email, fullName, role, passwordHash }
+});
+
+await this.auditService.log({
+  companyId,
+  userId: actorUserId,
+  entityType: 'USER',
+  entityId: created.id,
+  action: 'CREATE',
+  after: created as unknown as Prisma.InputJsonValue
+});
+```
+
+### Example: Role Change
+
+From `apps/backend/src/modules/users/users.service.ts:139-147`:
+
+```typescript
+const updated = await this.prisma.user.update({
+  where: { id },
+  data: { role }
+});
+
+await this.auditService.log({
+  companyId,
+  userId: actorUserId,
+  entityType: 'USER',
+  entityId: id,
+  action: 'ROLE_CHANGE',
+  before: { role: user.role } as unknown as Prisma.InputJsonValue,
+  after: { role: updated.role } as unknown as Prisma.InputJsonValue
+});
+```
+
+### Example: Login Event
+
+From `apps/backend/src/modules/auth/auth.service.ts:60-69`:
+
+```typescript
+await this.auditService.log({
+  companyId: user.companyId,
+  userId: user.id,
+  entityType: 'AUTH',
+  entityId: user.id,
+  action: 'LOGIN',
+  metadata: {
+    email: user.email
+  }
+});
+```
+
+### Example: Password Change
+
+From `apps/backend/src/modules/users/users.service.ts:221-228`:
+
+```typescript
+await this.auditService.log({
+  companyId,
+  userId: actorUserId,
+  entityType: 'USER',
+  entityId: id,
+  action: 'PASSWORD_CHANGE',
+  metadata: { 
+    message: 'Password reseteada por gestion de recursos' 
+  } as unknown as Prisma.InputJsonValue
+});
+```
+
+<Warning>
+Never log sensitive data like passwords or tokens in `before`, `after`, or `metadata` fields.
+</Warning>
+
+## Querying Audit Logs
+
+### API Endpoint
+
+From `apps/backend/src/modules/audit/audit-logs.controller.ts`:
+
+```typescript
+@Controller('audit-logs')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class AuditLogsController {
+  @Get()
+  @Roles('DUENO', 'SUPERVISOR', 'ADMIN')
+  async findAll(
+    @CurrentUser() user: JwtUser,
+    @Query('entityType') entityType?: string,
+    @Query('action') action?: string,
+    @Query('limit') limit?: string
+  ) {
+    const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
+
+    return this.prisma.auditLog.findMany({
+      where: {
+        companyId: user.companyId,
+        entityType: entityType && entityType in AuditEntityType 
+          ? (entityType as AuditEntityType) 
+          : undefined,
+        action: action && action in AuditActionType 
+          ? (action as AuditActionType) 
+          : undefined
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            role: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take
+    });
+  }
+}
+```
+
+### Query Examples
+
+**Get all audit logs (last 50):**
+```bash
+GET /api/audit-logs
+```
+
+**Filter by entity type:**
+```bash
+GET /api/audit-logs?entityType=USER
+```
+
+**Filter by action:**
+```bash
+GET /api/audit-logs?action=LOGIN
+```
+
+**Combined filters with custom limit:**
+```bash
+GET /api/audit-logs?entityType=WORK_ORDER&action=STATUS_CHANGE&limit=100
+```
+
+### Response Format
+
+```json
+[
+  {
+    "id": "clx123abc",
+    "companyId": "clx456def",
+    "userId": "clx789ghi",
+    "entityType": "USER",
+    "entityId": "clx789ghi",
+    "action": "ROLE_CHANGE",
+    "before": {
+      "role": "OPERARIO"
+    },
+    "after": {
+      "role": "SUPERVISOR"
+    },
+    "metadata": null,
+    "createdAt": "2026-03-13T10:30:00.000Z",
+    "user": {
+      "id": "clx000admin",
+      "fullName": "Admin User",
+      "role": "ADMIN",
+      "email": "admin@example.com"
+    }
+  }
+]
+```
+
+## Access Control
+
+Only privileged roles can view audit logs:
+
+- **DUENO** - Full access
+- **SUPERVISOR** - Full access
+- **ADMIN** - Full access
+- **OPERARIO** - No access
+
+<Info>
+Audit logs are always scoped to the user's company (`companyId`) to ensure multi-tenant isolation.
+</Info>
+
+## Database Indexes
+
+Three indexes optimize audit log queries:
+
+```prisma
+@@index([companyId, createdAt])           // Time-based queries
+@@index([companyId, entityType, entityId]) // Entity history
+@@index([companyId, action])               // Action filtering
+```
+
+## Retention and Compliance
+
+### Current Implementation
+
+- Audit logs are stored indefinitely in PostgreSQL
+- No automatic cleanup or archival
+- All logs are tenant-isolated via `companyId`
+
+### Recommended Retention Policies
+
+For compliance and performance, consider implementing:
+
+1. **Hot storage**: Last 90 days in primary database
+2. **Warm storage**: 91-365 days in compressed format
+3. **Cold storage**: 1+ years in archival system
+4. **Legal holds**: Preserve specific records indefinitely
+
+### Query Limits
+
+API enforces reasonable limits:
+- Default: 50 records
+- Minimum: 1 record
+- Maximum: 200 records per request
+
+```typescript
+const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
+```
+
+<Expandable title="Complete Audit Log Query Example">
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Get audit trail for a specific work order
+const workOrderHistory = await prisma.auditLog.findMany({
+  where: {
+    companyId: 'clx123',
+    entityType: 'WORK_ORDER',
+    entityId: 'OT-2026-001'
+  },
+  include: {
+    user: {
+      select: {
+        fullName: true,
+        role: true
+      }
+    }
+  },
+  orderBy: {
+    createdAt: 'asc'
+  }
+});
+
+// Find all role changes in the last 30 days
+const roleChanges = await prisma.auditLog.findMany({
+  where: {
+    companyId: 'clx123',
+    action: 'ROLE_CHANGE',
+    createdAt: {
+      gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    }
+  },
+  include: {
+    user: true
+  }
+});
+
+// Track all actions by a specific user
+const userActions = await prisma.auditLog.findMany({
+  where: {
+    companyId: 'clx123',
+    userId: 'clx789'
+  },
+  orderBy: {
+    createdAt: 'desc'
+  },
+  take: 100
+});
+```
+
+</Expandable>
+
+## Best Practices
+
+1. **Always provide context**: Use `metadata` to include relevant details (e.g., reason for change)
+2. **Capture before/after**: For updates, always include both `before` and `after` states
+3. **Log actor**: Include `userId` when available to track who made changes
+4. **Use specific actions**: Choose the most specific `AuditActionType` (prefer `ROLE_CHANGE` over generic `UPDATE`)
+5. **Don't log secrets**: Never include passwords, tokens, or sensitive data
+6. **Tenant isolation**: Always filter by `companyId` in queries
+
+## Related Pages
+
+- [Role-Based Access Control](/advanced/role-permissions) - Understanding who can view audit logs
+- [Data Model](/advanced/data-model) - Complete AuditLog schema
+- [Work Order Management](/features/work-orders) - Work order status change auditing

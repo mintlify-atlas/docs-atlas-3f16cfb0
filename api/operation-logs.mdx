@@ -1,0 +1,349 @@
+---
+title: Operation Logs
+description: Track and query operational events and work order history
+---
+
+<Note>
+  **Authentication Required:** All endpoints require a valid JWT token.
+</Note>
+
+## Overview
+
+Operation logs provide complete traceability of work order events, including:
+- Work order lifecycle events (created, started, paused, resumed, finished)
+- Resource assignments
+- Material consumption
+- Status changes
+- Custom notes and observations
+
+Logs are automatically created by the system and can also be manually added by operators and supervisors.
+
+---
+
+## GET /api/operation-logs
+
+Retrieve operation logs with filtering options.
+
+### Query Parameters
+
+<ParamField query="workOrderId" type="string">
+  Filter by specific work order ID
+</ParamField>
+
+<ParamField query="from" type="string">
+  Start date filter (ISO 8601 format)
+</ParamField>
+
+<ParamField query="to" type="string">
+  End date filter (ISO 8601 format)
+</ParamField>
+
+### Response
+
+Returns an array of operation log entries.
+
+<ResponseField name="id" type="string">Log entry ID</ResponseField>
+<ResponseField name="companyId" type="string">Company ID</ResponseField>
+<ResponseField name="workOrderId" type="string">Related work order ID</ResponseField>
+<ResponseField name="resourceId" type="string">Related resource ID (if applicable)</ResponseField>
+<ResponseField name="userId" type="string">User who triggered the event</ResponseField>
+<ResponseField name="eventType" type="string">Event type (see Event Types below)</ResponseField>
+<ResponseField name="eventAt" type="string">Event timestamp (ISO 8601)</ResponseField>
+<ResponseField name="pauseReason" type="string">Reason for pause (if eventType is PAUSA)</ResponseField>
+<ResponseField name="note" type="string">Additional notes or details</ResponseField>
+<ResponseField name="createdAt" type="string">Log creation timestamp</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL (All logs)
+curl http://localhost:3000/api/operation-logs \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (By work order)
+curl "http://localhost:3000/api/operation-logs?workOrderId=clxw123abc" \
+  -H "Authorization: Bearer <token>"
+```
+
+```bash cURL (Date range)
+curl "http://localhost:3000/api/operation-logs?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z" \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxl123abc",
+    "companyId": "clx456def",
+    "workOrderId": "clxw123abc",
+    "resourceId": "clxr456def",
+    "userId": "clxu789ghi",
+    "eventType": "INICIO",
+    "eventAt": "2026-03-15T08:30:00.000Z",
+    "pauseReason": null,
+    "note": "Started work on CNC Mill #1",
+    "createdAt": "2026-03-15T08:30:00.000Z"
+  },
+  {
+    "id": "clxl456def",
+    "companyId": "clx456def",
+    "workOrderId": "clxw123abc",
+    "resourceId": "clxr456def",
+    "userId": "clxu789ghi",
+    "eventType": "PAUSA",
+    "eventAt": "2026-03-15T12:00:00.000Z",
+    "pauseReason": "Lunch break",
+    "note": "Paused for scheduled break",
+    "createdAt": "2026-03-15T12:00:00.000Z"
+  },
+  {
+    "id": "clxl789ghi",
+    "companyId": "clx456def",
+    "workOrderId": "clxw123abc",
+    "resourceId": "clxr456def",
+    "userId": "clxu789ghi",
+    "eventType": "REANUDACION",
+    "eventAt": "2026-03-15T13:00:00.000Z",
+    "pauseReason": null,
+    "note": "Resumed work after break",
+    "createdAt": "2026-03-15T13:00:00.000Z"
+  }
+]
+```
+
+---
+
+## GET /api/operation-logs/work-order/:workOrderId
+
+Retrieve all operation logs for a specific work order.
+
+### Path Parameters
+
+<ParamField path="workOrderId" type="string" required>
+  Work order ID
+</ParamField>
+
+### Response
+
+Returns an array of operation log entries for the specified work order, ordered chronologically.
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/operation-logs/work-order/clxw123abc \
+  -H "Authorization: Bearer <token>"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:3000/api/operation-logs/work-order/clxw123abc',
+  {
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  }
+);
+
+const logs = await response.json();
+```
+</CodeGroup>
+
+**Response:**
+```json
+[
+  {
+    "id": "clxl001",
+    "workOrderId": "clxw123abc",
+    "eventType": "OT_CREADA",
+    "eventAt": "2026-03-10T14:00:00.000Z",
+    "note": "Work order created from quotation Q-2026-001",
+    "userId": "clxu123",
+    "user": {
+      "fullName": "Admin User",
+      "role": "ADMIN"
+    }
+  },
+  {
+    "id": "clxl002",
+    "workOrderId": "clxw123abc",
+    "eventType": "ASIGNADO",
+    "eventAt": "2026-03-14T10:00:00.000Z",
+    "resourceId": "clxr456def",
+    "note": "Assigned to CNC Mill #1 and operator Juan Pérez",
+    "userId": "clxu456"
+  },
+  {
+    "id": "clxl003",
+    "workOrderId": "clxw123abc",
+    "eventType": "INICIO",
+    "eventAt": "2026-03-15T08:30:00.000Z",
+    "resourceId": "clxr456def",
+    "note": "Work started",
+    "userId": "clxu789ghi"
+  }
+]
+```
+
+---
+
+## GET /api/operation-logs/status
+
+Check operation logs service health status.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:3000/api/operation-logs/status \
+  -H "Authorization: Bearer <token>"
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## Event Types
+
+Operation logs track the following event types:
+
+<ResponseField name="OT_CREADA" type="event">
+  **Work Order Created** - Initial creation of work order
+</ResponseField>
+
+<ResponseField name="ASIGNADO" type="event">
+  **Assigned** - Resource or operator assigned to work order
+</ResponseField>
+
+<ResponseField name="INICIO" type="event">
+  **Start** - Work commenced on the order
+</ResponseField>
+
+<ResponseField name="PAUSA" type="event">
+  **Pause** - Work temporarily stopped (includes pauseReason)
+</ResponseField>
+
+<ResponseField name="REANUDACION" type="event">
+  **Resume** - Work resumed after pause
+</ResponseField>
+
+<ResponseField name="FINALIZACION" type="event">
+  **Finish** - Work completed
+</ResponseField>
+
+<ResponseField name="CAMBIO_ESTADO" type="event">
+  **Status Change** - Work order status changed
+</ResponseField>
+
+<ResponseField name="MATERIAL_CONSUMIDO" type="event">
+  **Material Consumed** - Material consumption recorded
+</ResponseField>
+
+<ResponseField name="NOTA" type="event">
+  **Note** - Custom note or observation added
+</ResponseField>
+
+---
+
+## Creating Operation Logs
+
+Operation logs are typically created automatically by the system when:
+- Work orders are created, updated, or status changes
+- Resources are assigned or unassigned
+- Materials are consumed
+
+Operators and supervisors can also manually add events using the work orders endpoints:
+- `POST /api/work-orders/:id/events` - Add custom events
+- `POST /api/work-orders/:id/consumptions` - Record material consumption
+- `PATCH /api/work-orders/:id/status` - Change status (auto-creates log)
+
+See the [Work Orders](/api/work-orders) documentation for details.
+
+---
+
+## Use Cases
+
+### Production Tracking
+
+Query logs to track work order progress in real-time:
+```javascript
+const logs = await fetch(
+  `api/operation-logs?workOrderId=${orderId}`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+const startEvent = logs.find(l => l.eventType === 'INICIO');
+const finishEvent = logs.find(l => l.eventType === 'FINALIZACION');
+```
+
+### Performance Analysis
+
+Analyze pause reasons and downtime:
+```javascript
+const pauseLogs = logs.filter(l => l.eventType === 'PAUSA');
+const pauseReasons = pauseLogs.map(l => l.pauseReason);
+```
+
+### Audit Trail
+
+Complete history of work order activities for compliance and review:
+```javascript
+const auditTrail = await fetch(
+  `api/operation-logs/work-order/${orderId}`,
+  { headers: { Authorization: 'Bearer ' + token } }
+).then(r => r.json());
+
+// Display chronological timeline
+auditTrail.forEach(log => {
+  console.log(`${log.eventAt}: ${log.eventType} - ${log.note}`);
+});
+```
+
+### Time Tracking
+
+Calculate actual work time excluding pauses:
+```javascript
+function calculateWorkTime(logs) {
+  let totalMinutes = 0;
+  let currentStart = null;
+  
+  logs.forEach(log => {
+    if (log.eventType === 'INICIO' || log.eventType === 'REANUDACION') {
+      currentStart = new Date(log.eventAt);
+    } else if (log.eventType === 'PAUSA' || log.eventType === 'FINALIZACION') {
+      if (currentStart) {
+        const duration = new Date(log.eventAt) - currentStart;
+        totalMinutes += duration / 60000;
+        currentStart = null;
+      }
+    }
+  });
+  
+  return totalMinutes;
+}
+```
+
+---
+
+## Best Practices
+
+1. **Add descriptive notes**: Include context in the `note` field for better understanding
+2. **Document pause reasons**: Always specify why work was paused
+3. **Query by date range**: Use date filters for performance when analyzing large datasets
+4. **Track resource utilization**: Cross-reference `resourceId` to monitor equipment and operator efficiency
+5. **Maintain chronological order**: Events are timestamped; use `eventAt` for accurate sequencing

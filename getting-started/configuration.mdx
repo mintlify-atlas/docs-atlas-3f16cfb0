@@ -1,0 +1,432 @@
+---
+title: Configuration
+description: Configure DRAIT Mini-MES environment variables for development and production
+---
+
+## Overview
+
+DRAIT Mini-MES uses environment variables for configuration. All settings are defined in the `.env` file at the project root. This file is loaded by Docker Compose and passed to the containers.
+
+<Note>
+Start with the provided `.env.example` file and customize as needed for your environment.
+</Note>
+
+## Environment Variables Reference
+
+### Global Settings
+
+#### NODE_ENV
+
+```bash
+NODE_ENV=development
+```
+
+Sets the Node.js environment mode.
+
+- **Type**: String
+- **Options**: `development`, `production`
+- **Default**: `development`
+- **Used by**: Backend application
+
+<Warning>
+Always set to `production` for production deployments to enable optimizations and disable debug features.
+</Warning>
+
+#### TZ
+
+```bash
+TZ=America/Buenos_Aires
+```
+
+Timezone for all containers and timestamps.
+
+- **Type**: String (IANA timezone identifier)
+- **Default**: `America/Buenos_Aires`
+- **Used by**: All containers
+- **Examples**: `America/New_York`, `Europe/London`, `Asia/Tokyo`
+
+### Database Configuration
+
+#### POSTGRES_DB
+
+```bash
+POSTGRES_DB=drait_mes
+```
+
+Name of the PostgreSQL database.
+
+- **Type**: String
+- **Default**: `drait_mes`
+- **Used by**: PostgreSQL container
+
+#### POSTGRES_USER
+
+```bash
+POSTGRES_USER=drait
+```
+
+PostgreSQL username.
+
+- **Type**: String
+- **Default**: `drait`
+- **Used by**: PostgreSQL container
+
+<Note>
+This user is automatically created with full permissions on the specified database.
+</Note>
+
+#### POSTGRES_PASSWORD
+
+```bash
+POSTGRES_PASSWORD=drait123
+```
+
+Password for the PostgreSQL user.
+
+- **Type**: String
+- **Default**: `drait123`
+- **Used by**: PostgreSQL container
+
+<Warning>
+**CRITICAL FOR PRODUCTION**: Change this to a strong password (minimum 16 characters, mixed case, numbers, special characters).
+</Warning>
+
+#### POSTGRES_PORT
+
+```bash
+POSTGRES_PORT=5432
+```
+
+Port to expose PostgreSQL on the host machine.
+
+- **Type**: Number
+- **Default**: `5432`
+- **Used by**: Docker Compose port mapping
+
+<Note>
+This is the external port on your host. Change if 5432 is already in use. The internal container port remains 5432.
+</Note>
+
+#### DATABASE_URL
+
+```bash
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+```
+
+Complete PostgreSQL connection string for Prisma ORM.
+
+- **Type**: String (PostgreSQL connection URI)
+- **Format**: `postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=SCHEMA`
+- **Used by**: Backend application (Prisma)
+
+**Components:**
+- `USER`: Must match `POSTGRES_USER`
+- `PASSWORD`: Must match `POSTGRES_PASSWORD`
+- `HOST`: Use `drait-db` (container name) for Docker networking
+- `PORT`: Internal port (always `5432` inside Docker)
+- `DATABASE`: Must match `POSTGRES_DB`
+- `schema`: PostgreSQL schema (usually `public`)
+
+<Warning>
+Use the container name `drait-db` as the host, NOT `localhost`. Docker Compose handles internal DNS resolution.
+</Warning>
+
+### Backend Configuration
+
+#### BACKEND_PORT
+
+```bash
+BACKEND_PORT=3000
+```
+
+Port the NestJS backend listens on inside its container.
+
+- **Type**: Number
+- **Default**: `3000`
+- **Used by**: Backend container
+
+<Note>
+This is the internal port. External access is through Nginx on port 80/HTTP_PORT.
+</Note>
+
+#### JWT_SECRET
+
+```bash
+JWT_SECRET=change_this_secret
+```
+
+Secret key for signing JWT authentication tokens.
+
+- **Type**: String
+- **Default**: `change_this_secret`
+- **Used by**: Backend authentication module
+
+<Warning>
+**CRITICAL FOR PRODUCTION**: Use a cryptographically secure random string (minimum 32 characters). Changing this invalidates all existing sessions.
+
+Generate a secure secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+</Warning>
+
+#### JWT_EXPIRES_IN
+
+```bash
+JWT_EXPIRES_IN=8h
+```
+
+Expiration time for JWT tokens.
+
+- **Type**: String (time span)
+- **Default**: `8h` (8 hours)
+- **Used by**: Backend authentication module
+- **Format**: `60`, `2m`, `10h`, `7d` (seconds, minutes, hours, days)
+
+<Note>
+Shorter expiration times are more secure but require users to log in more frequently. Typical values:
+- Development: `8h` to `24h`
+- Production: `1h` to `8h`
+</Note>
+
+#### CORS_ORIGIN
+
+```bash
+CORS_ORIGIN=http://localhost
+```
+
+Allowed origin for Cross-Origin Resource Sharing (CORS).
+
+- **Type**: String (URL)
+- **Default**: `http://localhost`
+- **Used by**: Backend CORS middleware
+
+<Note>
+For production, set this to your actual domain (e.g., `https://mes.yourcompany.com`).
+</Note>
+
+### Frontend Configuration
+
+#### VITE_API_BASE_URL
+
+```bash
+VITE_API_BASE_URL=/api
+```
+
+Base path for API requests from the frontend.
+
+- **Type**: String (URL path)
+- **Default**: `/api`
+- **Used by**: Frontend application (build-time)
+
+<Note>
+The `/api` path is proxied by Nginx to the backend container. This avoids CORS issues.
+</Note>
+
+### Nginx Configuration
+
+#### HTTP_PORT
+
+```bash
+HTTP_PORT=80
+```
+
+Port to expose the application on the host machine.
+
+- **Type**: Number
+- **Default**: `80`
+- **Used by**: Nginx container
+
+<Note>
+This is the main access port for the web interface. Access the app at `http://localhost:HTTP_PORT`
+</Note>
+
+## Configuration Examples
+
+### Development Environment
+
+```bash .env (Development)
+NODE_ENV=development
+TZ=America/Buenos_Aires
+
+# Database
+POSTGRES_DB=drait_mes
+POSTGRES_USER=drait
+POSTGRES_PASSWORD=drait123
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+
+# Backend
+BACKEND_PORT=3000
+JWT_SECRET=change_this_secret
+JWT_EXPIRES_IN=8h
+CORS_ORIGIN=http://localhost
+
+# Frontend
+VITE_API_BASE_URL=/api
+
+# Nginx
+HTTP_PORT=80
+```
+
+### Production Environment
+
+```bash .env (Production)
+NODE_ENV=production
+TZ=America/Buenos_Aires
+
+# Database - SECURE CREDENTIALS
+POSTGRES_DB=drait_mes_prod
+POSTGRES_USER=drait_prod
+POSTGRES_PASSWORD=Xk9#mP2$vL8@qR5*nB4&wT7!hF3^jD6%
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql://drait_prod:Xk9%23mP2%24vL8%40qR5%2AnB4%26wT7%21hF3%5EjD6%25@drait-db:5432/drait_mes_prod?schema=public
+
+# Backend - SECURE JWT
+BACKEND_PORT=3000
+JWT_SECRET=a7f3e9c2b1d5f8e4a6c3b9d7e2f5a8c1b4d6e9f2a5c8b1d4e7f3a6c9b2d5e8f1
+JWT_EXPIRES_IN=2h
+CORS_ORIGIN=https://mes.yourcompany.com
+
+# Frontend
+VITE_API_BASE_URL=/api
+
+# Nginx
+HTTP_PORT=80
+```
+
+<Warning>
+**Production Security Checklist:**
+- ✅ Change `POSTGRES_PASSWORD` to a strong password
+- ✅ Generate a new `JWT_SECRET` (32+ characters)
+- ✅ Set `NODE_ENV=production`
+- ✅ Update `CORS_ORIGIN` to your domain
+- ✅ Consider shorter `JWT_EXPIRES_IN` (1-2 hours)
+- ✅ Enable HTTPS/SSL (configure Nginx or use a reverse proxy)
+</Warning>
+
+### Custom Port Configuration
+
+If default ports are already in use:
+
+```bash .env (Custom Ports)
+# Use port 8080 instead of 80
+HTTP_PORT=8080
+
+# Use PostgreSQL port 5433 instead of 5432
+POSTGRES_PORT=5433
+
+# DATABASE_URL uses internal port (still 5432)
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+```
+
+Access the application at: `http://localhost:8080`
+
+### Multi-Instance Configuration
+
+To run multiple instances on the same server:
+
+```bash .env (Instance 1)
+HTTP_PORT=8001
+POSTGRES_PORT=5433
+POSTGRES_DB=drait_mes_instance1
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes_instance1?schema=public
+```
+
+```bash .env (Instance 2)
+HTTP_PORT=8002
+POSTGRES_PORT=5434
+POSTGRES_DB=drait_mes_instance2
+DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes_instance2?schema=public
+```
+
+<Note>
+Each instance needs unique external ports and database names. Use separate directories or Docker Compose project names.
+</Note>
+
+## Database Connection String Format
+
+The `DATABASE_URL` follows the PostgreSQL connection URI format:
+
+```
+postgresql://[user[:password]@][host][:port][/database][?parameter=value]
+```
+
+**Important Notes:**
+- **URL encoding**: Special characters in passwords must be URL-encoded
+  - `@` → `%40`
+  - `#` → `%23`
+  - `$` → `%24`
+  - `%` → `%25`
+  - `&` → `%26`
+- **Host**: Use the Docker service name (`drait-db`), not `localhost`
+- **Port**: Always use internal port `5432` in DATABASE_URL
+- **Schema**: Specify `?schema=public` for proper Prisma operation
+
+## Applying Configuration Changes
+
+After modifying `.env`, restart the containers:
+
+<CodeGroup>
+```bash bash
+docker compose down
+docker compose up -d
+```
+
+```powershell PowerShell
+docker compose down
+docker compose up -d
+```
+</CodeGroup>
+
+<Note>
+Changes to `VITE_API_BASE_URL` require a rebuild:
+```bash
+docker compose up --build -d
+```
+</Note>
+
+## Security Best Practices
+
+1. **Never commit `.env` to version control**
+   - Add `.env` to `.gitignore`
+   - Use `.env.example` as a template
+
+2. **Use strong passwords and secrets**
+   - Minimum 16 characters for passwords
+   - Minimum 32 characters for JWT_SECRET
+   - Use cryptographically secure random generation
+
+3. **Restrict database access**
+   - Don't expose `POSTGRES_PORT` in production (comment out the ports section in docker-compose.yml)
+   - Use Docker internal networking only
+
+4. **Enable HTTPS in production**
+   - Use a reverse proxy (Traefik, Caddy, or Nginx with SSL)
+   - Obtain SSL certificates (Let's Encrypt)
+   - Redirect HTTP to HTTPS
+
+5. **Set appropriate token expiration**
+   - Shorter tokens (1-2h) for production
+   - Consider implementing refresh tokens for better UX
+
+## Environment Variable Validation
+
+The backend validates critical environment variables on startup. If required variables are missing or invalid, the application will fail to start with a clear error message.
+
+**Required variables:**
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `BACKEND_PORT`
+
+Check backend logs if the container fails to start:
+
+```bash
+docker compose logs drait-backend
+```
+
+## Next Steps
+
+- [Installation Guide](/getting-started/installation) - Complete installation instructions
+- [Quick Start](/getting-started/quickstart) - Get up and running quickly
+- [First Login](/getting-started/first-login) - Learn about user roles and demo credentials

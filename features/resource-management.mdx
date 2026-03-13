@@ -1,0 +1,559 @@
+---
+title: 'Resource Management'
+description: 'Manage shop floor resources including machines, workstations, and human operators'
+icon: 'gears'
+---
+
+## Overview
+
+The Resource Management module controls your production capacity by tracking machines, workstations, and human operators. It serves as the foundation for work order assignments, capacity planning, and utilization tracking.
+
+<CardGroup cols={2}>
+  <Card title="Resource Types" icon="layer-group">
+    Define both HUMANO (human) and MAQUINA (machine) resources
+  </Card>
+  <Card title="Status Tracking" icon="circle-check">
+    Monitor availability: DISPONIBLE, OCUPADO, MANTENIMIENTO, FUERA_DE_LINEA
+  </Card>
+  <Card title="Work Assignment" icon="link">
+    Link resources to work orders for capacity planning
+  </Card>
+  <Card title="Sector Organization" icon="sitemap">
+    Group resources by physical location or department
+  </Card>
+</CardGroup>
+
+## Resource Types
+
+<Tabs>
+  <Tab title="HUMANO (Human)">
+    **Operator or Worker Position**
+    
+    Represents a person or role in production:
+    - Individual operators (e.g., "Juan Pérez")
+    - Generic roles (e.g., "Soldador Turno A")
+    - Workstation positions (e.g., "Operador Torno 1")
+    
+    **Usage:**
+    - Matched with user accounts for assignment
+    - Name should match user's `fullName` for auto-linking
+    - Used in operator terminal assignment logic
+    - Tracked in productivity reports
+    
+    **Example Resources:**
+    ```
+    Name: Rodriguez, Carlos
+    Type: HUMANO
+    Sector: Mecanizado
+    Status: DISPONIBLE
+    ```
+  </Tab>
+  
+  <Tab title="MAQUINA (Machine)">
+    **Equipment or Workstation**
+    
+    Represents physical production equipment:
+    - CNC machines (e.g., "Torno CNC Haas ST-10")
+    - Manual equipment (e.g., "Prensa Hidráulica 50T")
+    - Workbenches (e.g., "Banco de Ensamble 3")
+    - Tools or fixtures (e.g., "Soldadora MIG Miller")
+    
+    **Usage:**
+    - Track machine availability
+    - Schedule maintenance windows
+    - Plan capacity based on equipment
+    - Link to specific work orders
+    
+    **Example Resources:**
+    ```
+    Name: CNC Fresadora Vertical
+    Type: MAQUINA
+    Sector: Mecanizado Pesado
+    Status: MANTENIMIENTO
+    Notes: Cambio de husillo programado 15/03
+    ```
+  </Tab>
+</Tabs>
+
+## Resource Statuses
+
+Each resource has a current operational status:
+
+### DISPONIBLE (Available)
+
+- **Meaning**: Resource is ready for assignment
+- **Color**: Green badge
+- **Use for**: Idle equipment or available operators
+- **Actions**: Can be assigned to new work orders
+
+### OCUPADO (Busy)
+
+- **Meaning**: Currently assigned to active work order
+- **Color**: Blue badge  
+- **Use for**: Resources in use on EN_PROCESO orders
+- **Actions**: Cannot assign to additional orders (capacity full)
+
+### MANTENIMIENTO (Maintenance)
+
+- **Meaning**: Under repair or scheduled maintenance
+- **Color**: Yellow/warning badge
+- **Use for**: Planned downtime, repairs, calibration
+- **Actions**: Should not be assigned to orders
+- **Notes**: Document maintenance schedule in notes field
+
+### FUERA_DE_LINEA (Offline)
+
+- **Meaning**: Permanently unavailable or decommissioned
+- **Color**: Red/destructive badge
+- **Use for**: Broken equipment, terminated employees
+- **Actions**: Excluded from assignment dropdowns
+- **Notes**: Use instead of deleting (preserves history)
+
+## Key Capabilities
+
+### Resource Database
+
+- **Comprehensive Registry**: All production capacity in one view
+- **Search & Filter**: Find resources by name, type, or sector
+- **Status Management**: Quick status updates from table view
+- **Notes Field**: Document maintenance schedules, capabilities, certifications
+
+### Work Order Integration
+
+- **Assignment Matching**: Links resources to work orders
+- **Operator Pairing**: HUMANO resources matched with user accounts
+- **Capacity Tracking**: View which resources are assigned
+- **Workload Distribution**: See assignments per operator
+
+### Organization
+
+- **Sector Grouping**: Organize by physical location or department
+- **Type Filtering**: Quickly view only machines or only operators
+- **Flexible Naming**: Use any naming convention that fits your shop
+
+## User Workflows
+
+<Steps>
+  <Step title="Create New Resource">
+    1. Click **+ Nueva Estación** in page header
+    2. Select resource type:
+       - **HUMANO (Persona / Puesto)**: For operators
+       - **MAQUINA (Física / Virtual)**: For equipment
+    3. Enter resource name (e.g., "Torno CNC 1" or "Pérez, Juan")
+    4. Set sector/area (e.g., "Mecanizado Ligero")
+    5. Add optional notes (maintenance schedule, capabilities)
+    6. Click **Asignar Alta al Taller**
+    7. Resource appears in table with DISPONIBLE status
+  </Step>
+  
+  <Step title="Update Resource Status">
+    1. Find resource in main table
+    2. In "Disponibilidad" column, click status dropdown
+    3. Select new status:
+       - DISPONIBLE (ready for work)
+       - OCUPADO (currently assigned)
+       - MANTENIMIENTO (under repair)
+       - FUERA_DE_LINEA (offline)
+    4. Status updates immediately
+    5. Change reflected in assignment dropdowns
+  </Step>
+  
+  <Step title="Assign Resource to Work Order">
+    1. Navigate to Work Orders page
+    2. Click **⚙️ Gest.** on desired work order
+    3. In "Asignar Puesto" section:
+       - For HUMANO: Select operator from dropdown
+       - System matches operator name with user account
+       - Automatically links to matching HUMANO resource
+    4. Click **Asignar** button
+    5. Assignment creates:
+       - Link between WO and resource
+       - Link between WO and user
+       - Visibility in operator's terminal
+  </Step>
+  
+  <Step title="Search and Filter Resources">
+    1. Use search bar: "🔍 Buscar recurso o sector..."
+    2. Type resource name or sector
+    3. Or use "Todos los Tipos" dropdown:
+       - MAQUINA: Show only equipment
+       - HUMANO: Show only operators
+    4. Table filters in real-time
+    5. Count badge shows filtered results
+  </Step>
+</Steps>
+
+## UI Elements and Forms
+
+### Resource List Table
+
+**Columns:**
+
+| Column | Description | Interactive |
+|--------|-------------|-------------|
+| Identificador | Resource name | - |
+| Tipo de Nodo | Type badge (MAQUINA/HUMANO) | - |
+| Sector | Physical location or department | - |
+| Estado Actual | Status badge with color | - |
+| Disponibilidad | Status dropdown for quick updates | ✅ Click to change |
+
+**Features:**
+- Real-time filtering by search and type
+- Color-coded status badges
+- Inline status editing
+- Empty state for new installations
+
+### Create Resource Form
+
+#### Parámetros (Parameters)
+
+| Field | Type | Required | Validation | Max Length |
+|-------|------|----------|------------|------------|
+| `type` | Enum | Yes | HUMANO or MAQUINA | - |
+| `name` | Text | Yes | Non-empty string | 120 chars |
+| `sector` | Text | No | - | 120 chars |
+| `status` | Enum | No | Default: DISPONIBLE | - |
+| `notes` | Textarea | No | - | 500 chars |
+
+**Backend Validation:**
+
+```typescript
+// CreateResourceDto
+@IsEnum(ResourceType)
+type!: ResourceType;  // HUMANO | MAQUINA
+
+@IsString()
+@MaxLength(120)
+name!: string;
+
+@IsOptional()
+@IsEnum(ResourceStatus)
+status?: ResourceStatus;  // DISPONIBLE | OCUPADO | MANTENIMIENTO | FUERA_DE_LINEA
+```
+
+## Assignment Logic
+
+### Operator Matching
+
+When assigning work orders, the system matches operators to resources:
+
+```typescript
+// Matching algorithm (WorkOrdersPage.tsx:74-79)
+const operatorOptions = useMemo(() => {
+  const res = resourcesQuery.data ?? [];
+  return (operatorsQuery.data ?? []).map(o => {
+    const r = res.find(x => 
+      x.name.trim().toLowerCase() === o.fullName.trim().toLowerCase()
+    );
+    return r ? { userId: o.id, fullName: o.fullName, resourceId: r.id } : null;
+  }).filter(Boolean);
+}, [operatorsQuery.data, resourcesQuery.data]);
+```
+
+**Requirements:**
+1. User account exists with role OPERARIO
+2. User account is active (`isActive: true`)
+3. HUMANO resource exists with matching name
+4. Names match exactly (case-insensitive, trimmed)
+
+**Example:**
+```
+User Account:
+  fullName: "Rodriguez, Carlos"
+  role: OPERARIO
+  isActive: true
+
+Resource:
+  type: HUMANO
+  name: "Rodriguez, Carlos"
+  
+✅ Matches - appears in assignment dropdown
+```
+
+### Assignment Creation
+
+When you assign an operator to a work order:
+
+```bash
+POST /api/work-orders/{id}/assignments
+{
+  "resourceId": "resource-uuid",
+  "userId": "user-uuid"
+}
+```
+
+System creates:
+- Assignment record linking WO + Resource + User
+- Work order becomes visible in operator's terminal
+- Status may auto-update based on rules
+- Assignment tracked in reports
+
+## Sector Organization
+
+Use the sector field to organize resources by:
+
+### Physical Layout
+
+```
+Mecanizado Pesado
+  - Torno CNC 1
+  - Torno CNC 2
+  - Fresadora Vertical
+
+Mecanizado Ligero
+  - Torno Manual
+  - Taladro de Columna
+  - Esmeril
+
+Ensamble
+  - Banco 1
+  - Banco 2
+  - Soldadura
+```
+
+### Functional Departments
+
+```
+Producción
+  - Operador Turno A
+  - Operador Turno B
+
+Calidad
+  - Inspector QA
+  
+Mantenimiento
+  - Técnico Mecánico
+```
+
+### Skill Groups
+
+```
+Soldadura
+  - Pérez (Cert. MIG/TIG)
+  - González (Cert. MIG)
+
+CNC
+  - Martínez (5 años exp.)
+  - López (Programador)
+```
+
+<Note>
+  Sectors are free-form text fields. Establish a naming convention and document it for consistency across your team.
+</Note>
+
+## Admin Area (Restricted Access)
+
+Users with DUENO or ADMIN roles see additional sections:
+
+### User Account Management
+
+**Cuentas de Acceso** table shows:
+- All user accounts across roles
+- Real-time editing of names and emails
+- Role assignment dropdowns (OPERARIO, SUPERVISOR, ADMIN)
+- Password reset functionality
+- Account suspension toggle
+
+**Features:**
+- Inline editing of user profiles
+- Role changes apply immediately
+- Password requirements: min 6 characters
+- Cannot suspend owner@drait.local account
+- Search by name or email
+- Filter by role
+
+### Company Settings
+
+**Configuración Sensible del Negocio** includes:
+
+#### Alarma Thresholds
+```
+warningTimeDeviationPct: 20   # Yellow alert at +20% time
+criticalTimeDeviationPct: 40  # Red alert at +40% time
+warningCostDeviationPct: 15   # Yellow alert at +15% cost
+criticalCostDeviationPct: 30  # Red alert at +30% cost
+```
+
+#### Production Defaults
+```
+workOrderCodePrefix: "OT-"    # Code format prefix
+defaultWorkOrderPriority: 3   # New WO priority (1-5)
+requireDeliveryChecklist: true # Enforce checklist on delivery
+```
+
+### Audit Log Viewer
+
+**Auditoria Trazabilidad** shows last 40 system actions:
+- Entity type (e.g., WORK_ORDER, MATERIAL)
+- Action performed (CREATE, UPDATE, DELETE)
+- User who performed action
+- Timestamp with date and time
+- Entity ID reference
+
+### Access Matrix Display
+
+**Matriz de Autorizaciones Vigente** visualizes permissions:
+- Grouped by role (DUENO, ADMIN, SUPERVISOR, OPERARIO)
+- Shows module access per role
+- Lists allowed actions (READ, WRITE, DELETE, ASSIGN)
+- Read-only display (not editable via UI)
+
+## Related Features
+
+### Work Orders
+
+- Resources assigned to specific work orders
+- Operator sees assignments in terminal
+- Supervisor monitors resource utilization
+- Assignment history preserved in audit log
+
+### User Management
+
+- User accounts linked to HUMANO resources
+- Role-based access control
+- Active/inactive status affects assignment options
+- Password management for operator terminals
+
+### Reports & Analytics
+
+- Productivity by resource
+- Utilization rates (time assigned vs. available)
+- Operator performance metrics
+- Equipment downtime tracking
+
+## Role-Based Access
+
+| Feature | DUENO | ADMIN | SUPERVISOR | OPERARIO |
+|---------|-------|-------|------------|----------|
+| View Resources | ✅ | ✅ | ✅ | ⚠️ Assigned only |
+| Create Resources | ✅ | ✅ | ✅ | ❌ |
+| Update Status | ✅ | ✅ | ✅ | ❌ |
+| Delete Resources | ✅ | ✅ | ⚠️ Limited | ❌ |
+| Manage Users | ✅ | ✅ | ❌ | ❌ |
+| Company Settings | ✅ | ✅ | ❌ | ❌ |
+| View Audit Log | ✅ | ✅ | ✅ | ❌ |
+| Access Matrix | ✅ | ✅ | 👁️ View only | ❌ |
+
+<Warning>
+  The owner@drait.local account (DUENO role) cannot be suspended or have its role changed. This ensures system access is never lost.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Consistent Naming Convention">
+    Establish and document naming standards:
+    
+    **For HUMANO resources:**
+    - Match user account `fullName` exactly
+    - Format: "Lastname, Firstname" or "Firstname Lastname"
+    - Example: "Pérez, Carlos" or "Carlos Pérez"
+    
+    **For MAQUINA resources:**
+    - Include type, brand, model if relevant
+    - Number duplicates sequentially
+    - Example: "Torno CNC Haas ST-10 #1", "Torno CNC Haas ST-10 #2"
+  </Accordion>
+  
+  <Accordion title="Active Status Management">
+    Keep status fields current:
+    - Update to MANTENIMIENTO before planned maintenance
+    - Set to FUERA_DE_LINEA instead of deleting
+    - Use notes field to explain status changes
+    - Review status weekly for accuracy
+  </Accordion>
+  
+  <Accordion title="Sector Organization">
+    Use sectors for meaningful grouping:
+    - Align with physical shop floor layout
+    - Or organize by skill/capability
+    - Document sector definitions
+    - Train staff on which sector to use
+  </Accordion>
+  
+  <Accordion title="Notes Field Usage">
+    Document important information:
+    
+    **For machines:**
+    - Maintenance schedule ("PM cada 500 hrs")
+    - Repair history ("Husillo reemplazado Feb 2026")
+    - Capabilities ("Max RPM 3000, Chuck 12in")
+    - Certifications or calibrations
+    
+    **For operators:**
+    - Certifications ("Cert. Soldadura MIG/TIG")
+    - Specializations ("Experto en piezas complejas")
+    - Shift assignments ("Turno A: 06:00-14:00")
+    - Training status
+  </Accordion>
+</AccordionGroup>
+
+## Technical Implementation
+
+**Source Code:**
+
+- Frontend: `apps/frontend/src/features/resources/ResourcesPage.tsx`
+- Backend DTO: `apps/backend/src/modules/resources/dto/create-resource.dto.ts`
+- Database: Prisma schema with ResourceType and ResourceStatus enums
+- User matching: WorkOrdersPage.tsx lines 74-79
+
+**API Endpoints:**
+
+```bash
+# Resources
+GET    /api/resources                  # List all
+GET    /api/resources?type=HUMANO      # Filter by type
+POST   /api/resources                  # Create new
+PATCH  /api/resources/{id}             # Update (including status)
+DELETE /api/resources/{id}             # Delete (restricted)
+
+# Users (Admin only)
+GET    /api/users                      # List users
+GET    /api/users?role=OPERARIO        # Filter by role
+POST   /api/users                      # Create user
+PATCH  /api/users/{id}/role            # Change role
+PATCH  /api/users/{id}/profile         # Update name/email
+PATCH  /api/users/{id}/password        # Reset password
+PATCH  /api/users/toggle-active        # Suspend/activate
+
+# Company Settings (Admin only)
+GET    /api/companies/settings         # Get config
+PATCH  /api/companies/settings         # Update config
+GET    /api/companies/access-matrix    # View permissions
+
+# Audit Logs
+GET    /api/audit-logs?limit=40        # Recent actions
+```
+
+**Database Schema (Prisma):**
+
+```prisma
+model Resource {
+  id        String         @id @default(uuid())
+  type      ResourceType   // HUMANO | MAQUINA
+  name      String         @db.VarChar(120)
+  sector    String?        @db.VarChar(120)
+  status    ResourceStatus @default(DISPONIBLE)
+  notes     String?        @db.VarChar(500)
+  
+  assignments Assignment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([type])
+  @@index([status])
+}
+
+enum ResourceType {
+  HUMANO
+  MAQUINA
+}
+
+enum ResourceStatus {
+  DISPONIBLE
+  OCUPADO
+  MANTENIMIENTO
+  FUERA_DE_LINEA
+}
+```
